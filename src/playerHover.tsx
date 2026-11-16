@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { getPlayer, type PlayerDossier } from './api';
-import { formatRating } from './ratingScale';
+import { RatingPair } from './RatingGrade';
 import { daysShort } from './injury';
 
 /**
@@ -121,10 +121,7 @@ function Card({ id, anchor }: { id: number; anchor: DOMRect }) {
           <div className="phover-grid">
             {data.oaRating !== null && (
               <span>
-                OA <b>{formatRating(data.oaRating)}</b>
-                {data.potRating !== null && data.potRating !== data.oaRating && (
-                  <>→{formatRating(data.potRating)}</>
-                )}
+                OA <RatingPair current={data.oaRating} potential={data.potRating} />
               </span>
             )}
             {data.overallPct !== null && (

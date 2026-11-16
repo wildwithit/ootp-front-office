@@ -55,7 +55,8 @@ export function SortableTh({
   const label = typeof children === 'string' ? children : null;
   const definition = tip ?? (label ? define(label) : undefined);
   return (
-    <th className={[className, 'sortable', active ? 'sorted' : ''].filter(Boolean).join(' ')}>
+    <th scope="col" aria-sort={active ? (dir === 1 ? 'ascending' : 'descending') : undefined}
+      className={[className, 'sortable', active ? 'sorted' : ''].filter(Boolean).join(' ')}>
       <button type="button" onClick={onSort}>
         {definition ? <Tip label={children} tip={definition} /> : children}
         {active && <span className="sort-arrow">{dir === 1 ? '▲' : '▼'}</span>}

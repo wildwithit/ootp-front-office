@@ -1,9 +1,9 @@
+import { RatingPair } from '../RatingGrade';
 import { useEffect, useMemo, useState } from 'react';
 import { getRoster, getTeams, type RosterPlayer, type RosterResponse, type Team } from '../api';
 import { PlayerLink, Tip, TIP_OA } from '../playerModal';
 import { daysLong, daysShort } from '../injury';
 import { ColumnPicker } from '../ColumnPicker';
-import { formatRatingPair } from '../ratingScale';
 import {
   DEFAULT_BATTING, DEFAULT_PITCHING, findStat, formatStat, isContactStat, isFieldingStat, loadColumns,
   plusColor, saveColumns, type StatGroup,
@@ -180,7 +180,7 @@ function RosterTable({
               </td>
               <td className="num muted">
                 {p.oaRating !== null
-                  ? formatRatingPair(p.oaRating, p.potRating)
+                  ? <RatingPair current={p.oaRating} potential={p.potRating} />
                   : ''}
               </td>
               {ratingCols.map((k) => (

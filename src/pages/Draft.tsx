@@ -1,8 +1,8 @@
+import { RatingGrade, RatingPair } from '../RatingGrade';
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../api';
 import { PlayerLink, Tip, TIP_CURPOT } from '../playerModal';
 import { Th } from '../Th';
-import { formatRating, formatRatingPair } from '../ratingScale';
 
 interface DraftProspect {
   player_id: number; name: string; age: number; positionName: string; bats: string; throws: string;
@@ -239,7 +239,7 @@ export function Draft({ orgId }: { orgId: number }) {
                     <td className="num muted">{p.boardRank}</td>
                     <td className="name"><PlayerLink id={p.player_id}>{p.name}</PlayerLink></td>
                     <td>{p.positionName}</td>
-                    <td className="num">{formatRatingPair(p.cur, p.pot)}</td>
+                    <td className="num"><RatingPair current={p.cur} potential={p.pot} /></td>
                     <td className="muted">{p.recommendation?.label ?? ''}</td>
                   </tr>
                 ))}
@@ -258,7 +258,7 @@ export function Draft({ orgId }: { orgId: number }) {
                       <td className="num muted">{p.boardRank}</td>
                       <td className="name"><PlayerLink id={p.player_id}>{p.name}</PlayerLink></td>
                       <td>{p.positionName}</td>
-                      <td className="num">{formatRatingPair(p.cur, p.pot)}</td>
+                      <td className="num"><RatingPair current={p.cur} potential={p.pot} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -374,8 +374,8 @@ export function Draft({ orgId }: { orgId: number }) {
               <td>{p.positionName}</td>
               <td>{p.bats}/{p.throws}</td>
               <td>{p.school}</td>
-              <td className="num">{formatRating(p.cur)}</td>
-              <td className="num">{formatRating(p.pot)}</td>
+              <td className="num"><RatingGrade value={p.cur} /></td>
+              <td className="num"><RatingGrade value={p.pot} /></td>
               <td className="num">{p.upside === null ? '' : `+${p.upside}`}</td>
               <td className="muted">{p.recommendation?.label ?? ''}</td>
             </tr>

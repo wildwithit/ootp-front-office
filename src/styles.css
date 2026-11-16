@@ -1940,7 +1940,6 @@ button.cta {
 .contact-value { font-family: var(--font-display); font-size: 18px; font-variant-numeric: tabular-nums; }
 .contact-league { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .contact-line { font-size: 12px; margin: 2px 0 6px; }
-.contact-luck { font-size: 13px; margin: 4px 0 0; }
 
 /* ── Game plan, opened from the schedule ──────────────────── */
 
@@ -2450,3 +2449,32 @@ tr.ours td:first-child { border-left: 3px solid var(--accent); }
 .trade-table-wrap { overflow-x: auto; }
 .trade-contract-facts { padding-left: 20px; margin: 8px 0; }
 .trade-player-value summary { cursor: pointer; }
+
+.rating-grade { color: var(--grade-ink, var(--text)); font-weight: 650; }
+.grade-0 { --grade-ink: #ff8c90; }
+.grade-1 { --grade-ink: #ffb779; }
+.grade-2 { --grade-ink: #f1d467; }
+.grade-3 { --grade-ink: #80d7a4; }
+.grade-4 { --grade-ink: #73dada; }
+.grade-5 { --grade-ink: #91baff; }
+
+[data-theme="light"] .grade-0 { --grade-ink: #a22732; }
+[data-theme="light"] .grade-1 { --grade-ink: #955223; }
+[data-theme="light"] .grade-2 { --grade-ink: #785a00; }
+[data-theme="light"] .grade-3 { --grade-ink: #196743; }
+[data-theme="light"] .grade-4 { --grade-ink: #126568; }
+[data-theme="light"] .grade-5 { --grade-ink: #2455a8; }
+
+.player-quick-look { margin-top: 14px; }
+.quick-look-heading, .quick-look-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.quick-look-heading { justify-content: space-between; }
+.modal .quick-look-heading h3 { margin: 0; }
+.quick-look-scope { font-size: 12px; margin: 5px 0 8px; }
+.quick-look-controls select { padding-block: 5px; }
+.quick-look-controls .col-picker { width: min(490px, calc(100vw - 72px)); }
+.player-quick-look .contact-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 104px), 1fr)); }
+.player-quick-look .contact-label { letter-spacing: 0.04em; }
+
+.dossier-head { padding-right: 30px; }
+.dossier-details { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 10px; }
+.dossier-details summary { cursor: pointer; color: var(--muted); }

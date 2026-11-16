@@ -1,8 +1,9 @@
+import { RatingPair } from './RatingGrade';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { apiDelete, apiGet, apiPost, getPlayer, type PlayerDossier } from './api';
 import { PlayerHover } from './playerHover';
-import { PlayerTrend } from './PlayerTrend';
-import { formatRatingPair, ratingFraction } from './ratingScale';
+import { PlayerQuickLook } from './PlayerQuickLook';
+import { ratingBand, ratingFraction } from './ratingScale';
 import { daysLong } from './injury';
 
 // Tiny pub/sub so any table cell can open the player card without prop drilling
@@ -93,7 +94,10 @@ export function PlayerModal() {
     if (playerId === null) return;
     setDossier(null);
     setError(null);
-    getPlayer(playerId).then(setDossier).catch((e) => setError(e.message));
+    let active = true;
+    getPlayer(playerId).then((data) => { if (active) setDossier(data); })
+      .catch((e) => { if (active) setError(e.message); });
+    return () => { active = false; };
   }, [playerId]);
 
   useEffect(() => {
@@ -112,7 +116,7 @@ export function PlayerModal() {
         <button className="modal-close" onClick={() => setPlayerId(null)}>✕</button>
         {error && <div className="banner error">{error}</div>}
         {!dossier && !error && <p className="muted">Loading player…</p>}
-        {dossier && <Dossier d={dossier} />}
+        {dossier && <Dossier key={dossier.player_id} d={dossier} />}
       </div>
     </div>
   );
@@ -264,7 +268,7 @@ function Dossier({ d }: { d: PlayerDossier }) {
           {d.oaRating !== null && (
             <div className="card">
               <span className="card-label"><Tip label="OA → POT" tip={TIP_OA} /></span>
-              <span className="card-value">{formatRatingPair(d.oaRating, d.potRating, ' → ')}</span>
+              <span className="card-value"><RatingPair current={d.oaRating} potential={d.potRating} arrow=" → " /></span>
             </div>
           )}
           <div className="card">
@@ -277,6 +281,8 @@ function Dossier({ d }: { d: PlayerDossier }) {
           </div>
         </div>
       </div>
+
+      <PlayerQuickLook player={d} />
 
       <div className="dossier-columns">
         {d.isPitcher && d.pitchingRatings && (
@@ -317,7 +323,7 @@ function Dossier({ d }: { d: PlayerDossier }) {
                         {p.code}
                         {p.isPrimary && <span className="muted"> · listed</span>}
                       </td>
-                      <td className="num">{formatRatingPair(p.current, p.potential, ' → ')}</td>
+                      <td className="num"><RatingPair current={p.current} potential={p.potential} arrow=" → " /></td>
                       <td className="num muted">{p.experience > 0 ? 'has played here' : ''}</td>
                     </tr>
                   ))}
@@ -338,21 +344,6 @@ function Dossier({ d }: { d: PlayerDossier }) {
                     .map(([k, v]) => [k, [v, v] as [number, number]])
                 )}
               />
-            </>
-          )}
-          {d.contract && d.contract.salarySchedule.length > 0 && (
-            <>
-              <h3>Contract{d.contract.noTrade ? ' · no-trade' : ''}</h3>
-              <table className="mini">
-                <tbody>
-                  {d.contract.salarySchedule.map((s) => (
-                    <tr key={s.year}>
-                      <td>{s.year}</td>
-                      <td className="num">{money(s.salary)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </>
           )}
         </section>
@@ -386,36 +377,27 @@ function Dossier({ d }: { d: PlayerDossier }) {
         </section>
       )}
 
-      {d.transactions && d.transactions.length > 0 && (
+      {d.injuryHistory.length > 0 && (
         <section>
-          <h3>Transactions</h3>
-          <table className="mini">
-            <tbody>
-              {d.transactions.map((t, i) => (
-                <tr key={i}>
-                  <td className="num">{t.date ?? ''}</td>
-                  <td className="wrap-cell">
-                    {t.summary.map((seg, j) =>
-                      seg.kind === 'player' && seg.id ? (
-                        <PlayerLink key={j} id={seg.id}>{seg.text}</PlayerLink>
-                      ) : seg.kind === 'team' ? (
-                        <strong key={j}>{seg.text}</strong>
-                      ) : (
-                        <span key={j}>{seg.text}</span>
-                      )
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <h3>Injury History</h3>
+          <div className="history-scroll">
+            <table className="mini">
+              <thead>
+                <tr><th>Date</th><th>Missed</th><th>Type</th></tr>
+              </thead>
+              <tbody>
+                {d.injuryHistory.map((h, i) => (
+                  <tr key={i}>
+                    <td>{h.date}</td>
+                    <td className="num">{h.length ? `${h.length} days` : '—'}</td>
+                    <td>{h.day_to_day === 1 ? 'Day-to-day' : 'IL stint'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
-
-      <section>
-        <h3>This Season, Game by Game</h3>
-        <PlayerTrend playerId={d.player_id} />
-      </section>
 
       {showBatting && d.battingYears.length > 0 && (
         <section>
@@ -447,6 +429,42 @@ function Dossier({ d }: { d: PlayerDossier }) {
               </tbody>
             </table>
             {battingYears.length === 0 && <p className="muted empty-scope">No {scopeWord(scope)} batting.</p>}
+          </div>
+        </section>
+      )}
+
+      {d.pitchingYears.length > 0 && (
+        <section>
+          <h3>Pitching History {picker}</h3>
+          <div className="history-scroll">
+            <table className="mini">
+              <thead>
+                <tr>
+                  <th>Year</th><th>Team</th><th>Lvl</th><th>G</th><th>GS</th><th>W-L</th><th>SV</th>
+                  <th>IP</th><th>ERA</th><th>WHIP</th><th>K</th><th>BB</th><th>WAR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pitchingYears.map((y, i) => (
+                  <tr key={i}>
+                    <td>{y.year}</td>
+                    <td>{y.team ?? '—'}</td>
+                    <td><span className="level-tag">{y.levelName}</span></td>
+                    <td className="num">{y.g}</td>
+                    <td className="num">{y.gs}</td>
+                    <td className="num">{y.w}-{y.l}</td>
+                    <td className="num">{y.sv}</td>
+                    <td className="num">{y.ip}</td>
+                    <td className="num">{y.era}</td>
+                    <td className="num">{y.whip}</td>
+                    <td className="num">{y.k}</td>
+                    <td className="num">{y.bb}</td>
+                    <td className="num">{y.war}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pitchingYears.length === 0 && <p className="muted empty-scope">No {scopeWord(scope)} pitching.</p>}
           </div>
         </section>
       )}
@@ -539,93 +557,6 @@ function Dossier({ d }: { d: PlayerDossier }) {
       )}
 
       {/* Honours first: what a player WAS is the headline of a career page */}
-      {(d.awards?.length ?? 0) > 0 && (
-        <section>
-          <h3>Honours</h3>
-          <div className="award-list">
-            {Object.entries(
-              (d.awards ?? []).reduce<Record<string, number[]>>((acc, a) => {
-                const label = a.positionName ? `${a.award} (${a.positionName})` : a.award;
-                (acc[label] ??= []).push(a.year);
-                return acc;
-              }, {})
-            )
-              // Keep the server's ordering: MVP before an All-Star nod
-              .sort(
-                (a, b) =>
-                  ((d.awards ?? []).find((x) =>
-                    (x.positionName ? `${x.award} (${x.positionName})` : x.award) === a[0]
-                  )?.rank ?? 99) -
-                  ((d.awards ?? []).find((x) =>
-                    (x.positionName ? `${x.award} (${x.positionName})` : x.award) === b[0]
-                  )?.rank ?? 99)
-              )
-              .map(([label, years]) => (
-                <div key={label} className="award-row">
-                  <span className="award-name">
-                    {years.length > 1 && <strong>{years.length}× </strong>}
-                    {label}
-                  </span>
-                  <span className="muted">{years.sort((a, b) => b - a).join(', ')}</span>
-                </div>
-              ))}
-          </div>
-        </section>
-      )}
-
-      {(d.leagueLeader?.length ?? 0) > 0 && (
-        <section>
-          <h3>Led the League</h3>
-          <table className="mini">
-            <tbody>
-              {(d.leagueLeader ?? []).slice(0, 12).map((l, i) => (
-                <tr key={i}>
-                  <td className="num muted">{l.year}</td>
-                  <td className="num">{l.place === 1 ? '1st' : l.place === 2 ? '2nd' : '3rd'}</td>
-                  <td>{l.category}</td>
-                  <td className="num">{l.amount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      <StaffNotes playerId={d.player_id} />
-
-      {d.contact && (d.contact.battedBalls ?? 0) > 0 && (
-        <section>
-          <h3>
-            <Tip
-              label="Contact Quality"
-              tip="Measured from every batted ball he has hit — OOTP records the exit velocity and launch angle of each one and shows none of it. Strikeouts and walks are excluded: they have no batted ball, so they belong in neither the numerator nor the denominator."
-            />
-          </h3>
-          <div className="contact-grid">
-            <ContactStat label="Avg exit velo" value={d.contact.avgExitVelo} unit=" mph" league={d.contactLeague?.avgExitVelo} />
-            <ContactStat label="Hardest hit" value={d.contact.maxExitVelo} unit=" mph" />
-            <ContactStat label="Hard-hit" value={d.contact.hardHitPct} unit="%" league={d.contactLeague?.hardHitPct} />
-            <ContactStat label="Barrels" value={d.contact.barrelPct} unit="%" league={d.contactLeague?.barrelPct} />
-            <ContactStat label="Sweet spot" value={d.contact.sweetSpotPct} unit="%" />
-            <ContactStat label="Sprint speed" value={d.contact.sprintSpeed} unit="" league={d.contactLeague?.sprintSpeed} />
-          </div>
-          <p className="muted contact-line">
-            Ground balls {d.contact.gbPct ?? '—'}% · line drives {d.contact.ldPct ?? '—'}% · fly balls{' '}
-            {d.contact.fbPct ?? '—'}% &middot; {d.contact.battedBalls} batted balls
-          </p>
-          {d.contact.slgLuck !== null && d.contact.slgLuck !== undefined && (
-            <p className={`contact-luck ${d.contact.slgLuck <= -0.06 ? 'good-text' : d.contact.slgLuck >= 0.06 ? 'bad-text' : 'muted'}`}>
-              {/* Framed as what to expect next, since that is the only reason
-                  the gap is worth knowing */}
-              Slugging {fmt3(d.contact.slg)} against {fmt3(d.contact.xslg)} expected from his contact
-              {d.contact.slgLuck <= -0.06 && ' — he has hit the ball better than the results show, and should improve without changing anything.'}
-              {d.contact.slgLuck >= 0.06 && ' — the results have outrun the contact, so expect some giveback.'}
-              {d.contact.slgLuck > -0.06 && d.contact.slgLuck < 0.06 && ' — his results match his contact.'}
-            </p>
-          )}
-        </section>
-      )}
-
       {d.splits.length > 1 && (
         <section>
           <h3>
@@ -654,63 +585,104 @@ function Dossier({ d }: { d: PlayerDossier }) {
         </section>
       )}
 
-      {d.injuryHistory.length > 0 && (
-        <section>
-          <h3>Injury History</h3>
-          <div className="history-scroll">
+      <details className="dossier-details">
+        <summary>More player details</summary>
+        {d.contract && d.contract.salarySchedule.length > 0 && (
+          <>
+            <h3>Contract{d.contract.noTrade ? ' · no-trade' : ''}</h3>
             <table className="mini">
-              <thead>
-                <tr><th>Date</th><th>Missed</th><th>Type</th></tr>
-              </thead>
               <tbody>
-                {d.injuryHistory.map((h, i) => (
-                  <tr key={i}>
-                    <td>{h.date}</td>
-                    <td className="num">{h.length ? `${h.length} days` : '—'}</td>
-                    <td>{h.day_to_day === 1 ? 'Day-to-day' : 'IL stint'}</td>
+                {d.contract.salarySchedule.map((s) => (
+                  <tr key={s.year}>
+                    <td>{s.year}</td>
+                    <td className="num">{money(s.salary)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        </section>
-      )}
+          </>
+        )}
+        {d.transactions && d.transactions.length > 0 && (
+          <section>
+            <h3>Transactions</h3>
+            <table className="mini">
+              <tbody>
+                {d.transactions.map((t, i) => (
+                  <tr key={i}>
+                    <td className="num">{t.date ?? ''}</td>
+                    <td className="wrap-cell">
+                      {t.summary.map((seg, j) =>
+                        seg.kind === 'player' && seg.id ? (
+                          <PlayerLink key={j} id={seg.id}>{seg.text}</PlayerLink>
+                        ) : seg.kind === 'team' ? (
+                          <strong key={j}>{seg.text}</strong>
+                        ) : (
+                          <span key={j}>{seg.text}</span>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
 
-      {d.pitchingYears.length > 0 && (
-        <section>
-          <h3>Pitching History {picker}</h3>
-          <div className="history-scroll">
+        {(d.awards?.length ?? 0) > 0 && (
+          <section>
+            <h3>Honours</h3>
+            <div className="award-list">
+              {Object.entries(
+                (d.awards ?? []).reduce<Record<string, number[]>>((acc, a) => {
+                  const label = a.positionName ? `${a.award} (${a.positionName})` : a.award;
+                  (acc[label] ??= []).push(a.year);
+                  return acc;
+                }, {})
+              )
+                // Keep the server's ordering: MVP before an All-Star nod
+                .sort(
+                  (a, b) =>
+                    ((d.awards ?? []).find((x) =>
+                      (x.positionName ? `${x.award} (${x.positionName})` : x.award) === a[0]
+                    )?.rank ?? 99) -
+                    ((d.awards ?? []).find((x) =>
+                      (x.positionName ? `${x.award} (${x.positionName})` : x.award) === b[0]
+                    )?.rank ?? 99)
+                )
+                .map(([label, years]) => (
+                  <div key={label} className="award-row">
+                    <span className="award-name">
+                      {years.length > 1 && <strong>{years.length}× </strong>}
+                      {label}
+                    </span>
+                    <span className="muted">{years.sort((a, b) => b - a).join(', ')}</span>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
+
+        {(d.leagueLeader?.length ?? 0) > 0 && (
+          <section>
+            <h3>Led the League</h3>
             <table className="mini">
-              <thead>
-                <tr>
-                  <th>Year</th><th>Team</th><th>Lvl</th><th>G</th><th>GS</th><th>W-L</th><th>SV</th>
-                  <th>IP</th><th>ERA</th><th>WHIP</th><th>K</th><th>BB</th><th>WAR</th>
-                </tr>
-              </thead>
               <tbody>
-                {pitchingYears.map((y, i) => (
+                {(d.leagueLeader ?? []).slice(0, 12).map((l, i) => (
                   <tr key={i}>
-                    <td>{y.year}</td>
-                    <td>{y.team ?? '—'}</td>
-                    <td><span className="level-tag">{y.levelName}</span></td>
-                    <td className="num">{y.g}</td>
-                    <td className="num">{y.gs}</td>
-                    <td className="num">{y.w}-{y.l}</td>
-                    <td className="num">{y.sv}</td>
-                    <td className="num">{y.ip}</td>
-                    <td className="num">{y.era}</td>
-                    <td className="num">{y.whip}</td>
-                    <td className="num">{y.k}</td>
-                    <td className="num">{y.bb}</td>
-                    <td className="num">{y.war}</td>
+                    <td className="num muted">{l.year}</td>
+                    <td className="num">{l.place === 1 ? '1st' : l.place === 2 ? '2nd' : '3rd'}</td>
+                    <td>{l.category}</td>
+                    <td className="num">{l.amount}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {pitchingYears.length === 0 && <p className="muted empty-scope">No {scopeWord(scope)} pitching.</p>}
-          </div>
-        </section>
-      )}
+          </section>
+        )}
+
+        <StaffNotes playerId={d.player_id} />
+
+      </details>
     </div>
   );
 }
@@ -725,11 +697,8 @@ function RatingRows({
           <span className="rating-row-label">{labels[key] ?? key}</span>
           <div className="rating wide">
             <div
-              className="rating-bar"
-              style={{
-                width: `${ratingFraction(cur) * 100}%`,
-                background: `hsl(${ratingFraction(cur) * 120}, 65%, 45%)`,
-              }}
+              className={`rating-bar grade-${ratingBand(cur)}`}
+              style={{ width: `${ratingFraction(cur) * 100}%`, background: 'var(--grade-ink)' }}
             />
             {pot > cur && (
               <div className="rating-pot" style={{ left: `${ratingFraction(pot) * 100}%` }} />
@@ -745,22 +714,6 @@ function RatingRows({
 function Pct({ v }: { v: number | null }) {
   if (v === null) return <span className="muted">—</span>;
   return <span style={{ color: `hsl(${(v / 100) * 120}, 65%, 55%)` }}>{v}</span>;
-}
-
-/**
- * One contact number, with the league's for scale. A raw "39.1% hard-hit"
- * means nothing to anyone who does not already know the league sits at 29.4.
- */
-function ContactStat({
-  label, value, unit, league,
-}: { label: string; value: number | null | undefined; unit: string; league?: number }) {
-  return (
-    <div className="contact-stat">
-      <span className="contact-label">{label}</span>
-      <span className="contact-value">{value === null || value === undefined ? '—' : `${value}${unit}`}</span>
-      {league !== undefined && <span className="contact-league">lg {league}{unit}</span>}
-    </div>
-  );
 }
 
 interface Note {

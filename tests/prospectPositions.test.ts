@@ -64,9 +64,11 @@ describe('the farm page', () => {
     for (const p of arms) expect(p.positionName).toBe('P');
   });
 
-  it('shows it', () => {
-    expect(read('src/pages/Prospects.tsx')).toMatch(/<Th>Pos<\/Th>/);
-    expect(read('src/pages/Prospects.tsx')).toMatch(/\{p\.positionName\}/);
+  it('shows and sorts by the same position or pitching role', () => {
+    const src = read('src/pages/Prospects.tsx');
+    expect(src).toContain("header('position', 'Pos')");
+    expect(src).toContain('{position(p)}');
+    expect(src).toContain('?? p.positionName');
   });
 });
 

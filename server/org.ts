@@ -558,6 +558,7 @@ export function computeProspects(orgId: number): { batters: unknown[]; pitchers:
     const common = {
       player_id: p.player_id,
       name: `${p.first_name} ${p.last_name}`,
+      lastName: p.last_name,
       age: p.age,
       // The position, named here as every other endpoint names it. A farm page
       // is read looking for a catcher or an arm, the same as the development

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiGet, apiPost } from '../api';
 import { FallbackNotice, type FallbackNoticeData } from '../FallbackNotice';
-import { formatRating } from '../ratingScale';
+import { RatingGrade } from '../RatingGrade';
 import type { PhilosophyEditorData } from '../../shared/gmPhilosophy';
 import { TradeExposure } from './TradeExposure';
 import type { TradeExposure as Exposure } from '../../shared/tradeExposure';
@@ -533,7 +533,7 @@ function TradeValues({ title, side }: { title: string; side: SideSummary }) {
               <dt>Value / talent points</dt><dd>{num(p.valuePoints)} / {num(p.talentPoints)}</dd>
             </div>
             <div title="Scouted grades on this save’s rating scale.">
-              <dt>Overall / potential</dt><dd>{formatRating(p.oaRating)} / {formatRating(p.potRating)}</dd>
+              <dt>Overall / potential</dt><dd><RatingGrade value={p.oaRating} /> / <RatingGrade value={p.potRating} /></dd>
             </div>
             <div title="Value and talent rank against the player’s MLB role.">
               <dt>Value / talent percentiles</dt><dd>{num(p.overallPct)} / {num(p.talentPct)}</dd>

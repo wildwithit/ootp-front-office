@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getProspects, type Prospect, type ProspectsResponse } from '../api';
-import { PlayerLink, Tip, TIP_CURPOT } from '../playerModal';
-import { Th } from '../Th';
-import { formatRatingPair } from '../ratingScale';
+import { PlayerLink, TIP_CURPOT } from '../playerModal';
+import { SortableTh, Th } from '../Th';
+import { RatingGrade } from '../RatingGrade';
 
 export function Prospects({ orgId }: { orgId: number }) {
   const [data, setData] = useState<ProspectsResponse | null>(null);
@@ -24,7 +24,7 @@ export function Prospects({ orgId }: { orgId: number }) {
         <strong>Demote</strong> marks a man clearly below his level who is not young for it — it asks a
         bigger gap and a longer look than promote does, because sending somebody down is the easier call
         to get wrong, and it is never shown for the lowest club in the organisation.{' '}
-        Those sit at the bottom of each table, since the order runs on the same signal.
+        Select a column heading to sort either table.
       </p>
       <p className="muted hint-line">
         <strong>The move</strong> is the other half of a call-up: who comes off the big club to make
@@ -44,7 +44,48 @@ export function Prospects({ orgId }: { orgId: number }) {
   );
 }
 
+const SIGNAL_ORDER = { promote: 0, blocked: 1, watch: 2, demote: 3 };
+const PITCHING_ROLES: Record<number, string> = { 11: 'SP', 12: 'RP', 13: 'CL' };
+const textOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
+const position = (p: Prospect) => PITCHING_ROLES[p.role ?? 0] ?? p.positionName;
+const sortFields = {
+  signal: (p: Prospect) => p.signal ? SIGNAL_ORDER[p.signal] : null,
+  name: (p: Prospect) => `${p.lastName ?? p.name} ${p.name}`,
+  age: (p: Prospect) => p.age,
+  position,
+  team: (p: Prospect) => p.team,
+  pa: (p: Prospect) => p.pa,
+  ops: (p: Prospect) => p.opsVal,
+  hr: (p: Prospect) => p.hr,
+  sb: (p: Prospect) => p.sb,
+  ip: (p: Prospect) => p.ip,
+  era: (p: Prospect) => p.era,
+  kpct: (p: Prospect) => p.kpct,
+  war: (p: Prospect) => p.war,
+  cur: (p: Prospect) => p.cur,
+  pot: (p: Prospect) => p.pot,
+};
+type ProspectSort = keyof typeof sortFields;
+type Direction = 1 | -1;
+
 function ProspectTable({ prospects, kind }: { prospects: Prospect[]; kind: 'batter' | 'pitcher' }) {
+  const [sort, setSort] = useState<{ key: ProspectSort; dir: Direction } | null>(null);
+  const header = (key: ProspectSort, label: string, initial: Direction = 1, tip?: string) => (
+    <SortableTh active={sort?.key === key} dir={sort?.dir ?? initial} tip={tip}
+      onSort={() => setSort((prior) => ({ key, dir: prior?.key === key ? (prior.dir === 1 ? -1 : 1) : initial }))}>
+      {label}
+    </SortableTh>
+  );
+  const rows = sort ? [...prospects].sort((a, b) => {
+    const field = sortFields[sort.key];
+    const x = field(a);
+    const y = field(b);
+    if (x == null) return y == null ? 0 : 1;
+    if (y == null) return -1;
+    const order = typeof x === 'number' && typeof y === 'number' ? x - y : textOrder.compare(String(x), String(y));
+    return sort.dir * order;
+  }) : prospects;
   if (prospects.length === 0) {
     return <p className="muted">No qualified {kind}s yet — small samples this early in the season.</p>;
   }
@@ -52,38 +93,39 @@ function ProspectTable({ prospects, kind }: { prospects: Prospect[]; kind: 'batt
     <table>
       <thead>
         <tr>
-          <Th>Signal</Th>
-          <Th>Player</Th>
-          <Th>Age</Th>
-          <Th>Pos</Th>
-          <Th>Team</Th>
+          {header('signal', 'Signal')}
+          {header('name', 'Player')}
+          {header('age', 'Age')}
+          {header('position', 'Pos')}
+          {header('team', 'Team')}
           {kind === 'batter' ? (
             <>
-              <Th>PA</Th>
-              <Th>OPS</Th>
-              <Th>HR</Th>
-              <Th>SB</Th>
+              {header('pa', 'PA', -1)}
+              {header('ops', 'OPS', -1)}
+              {header('hr', 'HR', -1)}
+              {header('sb', 'SB', -1)}
             </>
           ) : (
             <>
-              <Th>IP</Th>
-              <Th>ERA</Th>
-              <Th>K%</Th>
+              {header('ip', 'IP', -1)}
+              {header('era', 'ERA')}
+              {header('kpct', 'K%', -1)}
             </>
           )}
-          <Th>WAR</Th>
-          <th><Tip label="Cur→Pot" tip={TIP_CURPOT} /></th>
+          {header('war', 'WAR', -1)}
+          {header('cur', 'Current', -1, TIP_CURPOT)}
+          {header('pot', 'Potential', -1, TIP_CURPOT)}
           <Th>The move</Th>
           <Th>Why</Th>
         </tr>
       </thead>
       <tbody>
-        {prospects.map((p) => (
+        {rows.map((p) => (
           <tr key={p.player_id}>
             <td>{p.signal && <span className={`badge ${p.signal}`}>{p.signal}</span>}</td>
             <td className="name"><PlayerLink id={p.player_id}>{p.name}</PlayerLink></td>
             <td>{p.age}</td>
-            <td>{p.positionName}</td>
+            <td>{position(p)}</td>
             <td>
               <span className="level-tag">{p.levelName}</span> {p.team}
             </td>
@@ -102,9 +144,8 @@ function ProspectTable({ prospects, kind }: { prospects: Prospect[]; kind: 'batt
               </>
             )}
             <td className="num">{p.war?.toFixed(1)}</td>
-            <td className="num">
-              {formatRatingPair(p.cur, p.pot)}
-            </td>
+            <td className="num"><RatingGrade value={p.cur} /></td>
+            <td className="num"><RatingGrade value={p.pot} /></td>
             <td className="reasons">
               {p.signal === 'promote' || p.signal === 'blocked' ? p.move?.note ?? '—' : ''}
             </td>
