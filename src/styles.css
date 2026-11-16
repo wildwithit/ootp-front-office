@@ -2437,3 +2437,10 @@ tr.ours td:first-child { border-left: 3px solid var(--accent); }
   letter-spacing: normal;
   font-size: 0.9em;
 }
+
+
+.trade-value-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; margin-bottom: 14px; }
+.trade-player-value { padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin: 0 0 8px; }
+.trade-player-value dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 8px; margin: 8px 0 0; }
+.trade-player-value dt { color: var(--muted); }
+.trade-player-value dd { margin: 0; font-variant-numeric: tabular-nums; }

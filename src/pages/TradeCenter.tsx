@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiGet, apiPost } from '../api';
 import { FallbackNotice, type FallbackNoticeData } from '../FallbackNotice';
+import { formatRating } from '../ratingScale';
+import type { PhilosophyEditorData } from '../../shared/gmPhilosophy';
 import { PlayerLink } from '../playerModal';
 
 interface FitPlayer { player_id: number; name: string; value: number }
@@ -18,6 +20,8 @@ interface SideSummary {
   players: Array<{
     player_id: number; name: string; age: number; positionName: string; team: string | null;
     overallPct: number | null; talentPct: number | null; salaryNow: number; yearsAfterThis: number;
+    valuePoints: number | null; talentPoints: number | null; oaRating: number | null; potRating: number | null;
+    seasonLine: Record<string, number | null> | null; level: string | null; role: string | null; protected: boolean;
   }>;
   totalValue: number; totalTalent: number; totalSalary: number;
 }
@@ -82,6 +86,28 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
   const [talk, setTalk] = useState<TalkItem[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const builderRef = useRef<HTMLDivElement | null>(null);
+  const [protectedIds, setProtectedIds] = useState<number[]>([]);
+  const dealToken = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    apiGet<PhilosophyEditorData>(`/api/gm-philosophy/${orgId}`).then(({ philosophy }) => {
+      if (active) setProtectedIds(philosophy.protectedPlayers.map((p) => p.id));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [orgId]);
+
+  const resetDeal = () => {
+    dealToken.current++;
+    setAnalysis(null);
+    setThread([]);
+    setDraft('');
+    setNotice(null);
+    setError(null);
+    setAiBusy(false);
+  };
+  const setOutgoing = (players: SearchResult[]) => { resetDeal(); setSideA(players); };
+  const setIncoming = (players: SearchResult[]) => { resetDeal(); setSideB(players); };
 
   useEffect(() => {
     // Who answers, so the button can carry his name before he has said anything
@@ -112,9 +138,7 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
 
   /** Loads a real offer into the builder, both sides as they were proposed. */
   const reviewProposal = (p: Proposal) => {
-    setAnalysis(null);
-    setThread([]);
-    setDraft('');
+    resetDeal();
     const toRow = (x: ProposalSide['players'][number], team: string | null) => ({
       player_id: x.player_id,
       name: x.name,
@@ -139,9 +163,7 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
    * carries both sides.
    */
   const review = (item: TalkItem) => {
-    setAnalysis(null);
-    setThread([]);
-    setDraft('');
+    resetDeal();
     setSideB([{
       player_id: item.player.player_id,
       name: item.player.name,
@@ -161,17 +183,13 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
   };
 
   const analyze = async () => {
+    const token = dealToken.current;
     setError(null);
-    setThread([]);
     try {
-      setAnalysis(
-        await apiPost<Analysis>('/api/trade/analyze', {
-          sideA: sideA.map((p) => p.player_id),
-          sideB: sideB.map((p) => p.player_id),
-        })
-      );
+      const result = await apiPost<Analysis>('/api/trade/analyze', deal());
+      if (token === dealToken.current) setAnalysis(result);
     } catch (e) {
-      setError((e as Error).message);
+      if (token === dealToken.current) setError((e as Error).message);
     }
   };
 
@@ -186,25 +204,29 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
   });
 
   const askAI = async () => {
+    const token = dealToken.current;
+    void analyze();
     setAiBusy(true);
     setError(null);
     try {
       const r = await apiPost<{ verdict: string; voice: Voice; notice: Notice }>(
         '/api/trade/ai-eval', deal()
       );
+      if (token !== dealToken.current) return;
       setVoice(r.voice);
       setNotice(r.notice ?? null);
       setThread([{ role: 'assistant', content: r.verdict }]);
     } catch (e) {
-      setError((e as Error).message);
+      if (token === dealToken.current) setError((e as Error).message);
     } finally {
-      setAiBusy(false);
+      if (token === dealToken.current) setAiBusy(false);
     }
   };
 
   const reply = async () => {
     const message = draft.trim();
     if (!message || aiBusy) return;
+    const token = dealToken.current;
     const asked: TradeTurn[] = [...thread, { role: 'user', content: message }];
     setThread(asked);
     setDraft('');
@@ -216,15 +238,17 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
       const r = await apiPost<{ reply: string; voice: Voice; notice: Notice }>(
         '/api/trade/ai-reply', { ...deal(), thread, message }
       );
+      if (token !== dealToken.current) return;
       setNotice(r.notice ?? null);
       setThread([...asked, { role: 'assistant', content: r.reply }]);
     } catch (e) {
+      if (token !== dealToken.current) return;
       setError((e as Error).message);
       // Put the question back rather than lose what was typed
       setThread(thread);
       setDraft(message);
     } finally {
-      setAiBusy(false);
+      if (token === dealToken.current) setAiBusy(false);
     }
   };
 
@@ -310,7 +334,7 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
 
       <h2>Trade Analyzer</h2>
       <div className="trade-builder" ref={builderRef}>
-        <TradeSide title={`${orgLabel} send`} players={sideA} setPlayers={setSideA} />
+        <TradeSide title={`${orgLabel} send`} players={sideA} setPlayers={setOutgoing} protectedIds={protectedIds} />
         <div className="trade-middle">
           <button className="btn-feature" onClick={analyze} disabled={!sideA.length || !sideB.length}>
             ⇄ Compare
@@ -321,11 +345,13 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
               : `🤖 Ask ${voice ? voice.name : 'the front office'}`}
           </button>
         </div>
-        <TradeSide title={`${orgLabel} receive`} players={sideB} setPlayers={setSideB} />
+        <TradeSide title={`${orgLabel} receive`} players={sideB} setPlayers={setIncoming} />
       </div>
 
       {analysis && (
-        <div className="cards trade-verdict">
+        <section>
+          <h3>OOTP Numerical Value</h3>
+          <div className="cards trade-verdict">
           <SummaryCard label="Value sent" value={String(Math.round(analysis.sideA.totalValue))} />
           <SummaryCard label="Value received" value={String(Math.round(analysis.sideB.totalValue))} />
           <SummaryCard
@@ -333,12 +359,19 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
             value={`${analysis.valueDiff > 0 ? '−' : '+'}${Math.abs(Math.round(analysis.valueDiff))}`}
             tone={analysis.valueDiff > 0 ? 'bad' : 'good'}
           />
+          <SummaryCard label="Talent sent / received"
+            value={`${Math.round(analysis.sideA.totalTalent)} / ${Math.round(analysis.sideB.totalTalent)}`} />
           <SummaryCard
-            label="Salary swing"
+            label="Gross current salary swing"
             value={`${analysis.salaryDiff > 0 ? '−' : '+'}${money(Math.abs(analysis.salaryDiff))}`}
             tone={analysis.salaryDiff > 0 ? 'good' : 'bad'}
           />
-        </div>
+          </div>
+          <div className="trade-value-grid">
+            <TradeValues title="Outgoing players" side={analysis.sideA} />
+            <TradeValues title="Incoming players" side={analysis.sideB} />
+          </div>
+        </section>
       )}
       {notice && <FallbackNotice notice={notice} />}
       {thread.length > 0 && (
@@ -426,8 +459,8 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
 }
 
 function TradeSide({
-  title, players, setPlayers,
-}: { title: string; players: SearchResult[]; setPlayers: (p: SearchResult[]) => void }) {
+  title, players, setPlayers, protectedIds = [],
+}: { title: string; players: SearchResult[]; setPlayers: (p: SearchResult[]) => void; protectedIds?: number[] }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -473,9 +506,43 @@ function TradeSide({
         <div key={p.player_id} className="trade-chip">
           <PlayerLink id={p.player_id}>{p.name}</PlayerLink>
           <span className="muted"> {p.positionName} · {p.age}</span>
+          {protectedIds.includes(p.player_id) && <strong className="warn">Protected</strong>}
           <button className="chip-x" onClick={() => setPlayers(players.filter((x) => x.player_id !== p.player_id))}>
             ✕
           </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TradeValues({ title, side }: { title: string; side: SideSummary }) {
+  const num = (value: number | null) => value === null ? '—' : value.toLocaleString();
+  return (
+    <div>
+      <h4>{title}</h4>
+      {side.players.map((p) => (
+        <div className="trade-player-value" key={p.player_id}>
+          <strong><PlayerLink id={p.player_id}>{p.name}</PlayerLink></strong>
+          {' · '}{p.role ?? p.positionName}{p.protected && <strong className="warn"> · Protected</strong>}
+          <dl>
+            <div title="Raw current value and talent points from the OOTP export.">
+              <dt>Value / talent points</dt><dd>{num(p.valuePoints)} / {num(p.talentPoints)}</dd>
+            </div>
+            <div title="Scouted grades on this save’s rating scale.">
+              <dt>Overall / potential</dt><dd>{formatRating(p.oaRating)} / {formatRating(p.potRating)}</dd>
+            </div>
+            <div title="Value and talent rank against the player’s MLB role.">
+              <dt>Value / talent percentiles</dt><dd>{num(p.overallPct)} / {num(p.talentPct)}</dd>
+            </div>
+            <div title="Actual season statistics at the player’s current level.">
+              <dt>{p.level ?? 'Current level'} performance</dt>
+              <dd>{p.seasonLine ? p.role
+                ? `${p.seasonLine.ip ?? '—'} IP · ${p.seasonLine.era ?? '—'} ERA`
+                : `${p.seasonLine.pa ?? '—'} PA · ${p.seasonLine.ops ?? '—'} OPS`
+                : '—'}</dd>
+            </div>
+          </dl>
         </div>
       ))}
     </div>

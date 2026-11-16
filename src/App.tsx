@@ -480,7 +480,7 @@ export function App() {
                 {page === 'payroll' && <Payroll orgId={orgId} />}
                 {page === 'crunch' && <RosterCrunch orgId={orgId} />}
                 {page === 'injuries' && <Injuries orgId={orgId} />}
-                {page === 'trades' && <TradeCenter orgId={orgId} orgLabel={org.label} />}
+                {page === 'trades' && <TradeCenter key={`${status.saveScope}:${orgId}`} orgId={orgId} orgLabel={org.label} />}
                 {page === 'freeagents' && <FreeAgents orgId={orgId} />}
                 {page === 'lineup' && <Lineup teamId={orgId} />}
                 {page === 'pitching' && <Pitching teamId={orgId} />}
