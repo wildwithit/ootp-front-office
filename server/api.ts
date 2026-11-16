@@ -5,7 +5,7 @@ import { db, tableExists, tableColumns, locateColumn } from './db.js';
 import { detectSaves, resolveChosenFolder, searchLocations } from './paths.js';
 import { DATA_DIR, loadConfig, saveConfig } from './config.js';
 import { importCsvDir, type ImportProgress, type ImportResult } from './importer.js';
-import { clearPendingExport, pendingExport, startWatcher } from './watcher.js';
+import { clearPendingExport, pendingExport, startWatcher, stopWatcher } from './watcher.js';
 import { getApiKey, loadSettings } from './settings.js';
 import { useOllamaUrl } from './providers.js';
 import { orgRoutes } from './org.js';
@@ -40,6 +40,8 @@ import { scheduleRoutes } from './schedule.js';
 import { payrollRoutes } from './payroll.js';
 import { trendsRoutes } from './trends.js';
 import { chatRoutes } from './chat.js';
+import { captureCheckpoints, checkpointRoutes } from './checkpoints.js';
+import { activeSaveScope, invalidateSaveScope, recordSaveScope, saveKey } from './saveScope.js';
 
 /*
  * Where the local model server is, handed to the provider layer once. It reads
@@ -62,6 +64,7 @@ api.use(trendsRoutes);
 api.use(chatRoutes);
 api.use(playerRoutes);
 api.use(historyRoutes);
+api.use(checkpointRoutes);
 api.use(dashboardRoutes);
 api.use(rosterOpsRoutes);
 api.use(tradeRoutes);
@@ -146,6 +149,8 @@ export async function runImport(csvDir: string): Promise<void> {
   importState.lastError = null;
   importState.progress = null;
   try {
+    invalidateSaveScope();
+    const key = saveKey(csvDir);
     importState.lastImport = await importCsvDir(csvDir, (p) => {
       importState.progress = p;
     });
@@ -164,6 +169,14 @@ export async function runImport(csvDir: string): Promise<void> {
     );
     clearScaleCache();
     clearTwoWayCache();
+    if (key && saveKey(loadConfig().csvDir) === key) {
+      recordSaveScope(key, importState.lastImport);
+      try {
+        captureCheckpoints(key, importState.lastImport.files.map((file) => file.table));
+      } catch (err) {
+        console.error('[history] statistical checkpoint failed:', err);
+      }
+    }
     autoGenerate();
   } catch (err) {
     importState.lastError = (err as Error).message;
@@ -210,6 +223,7 @@ api.get('/status', (_req, res) => {
     csvExportedAt: config.csvDir ? csvExportedAt(config.csvDir) : null,
     configured: !!config.csvDir,
     saveName: config.saveName,
+    saveScope: activeSaveScope()?.key ?? null,
     csvDir: config.csvDir,
     csvDirExists: config.csvDir ? fs.existsSync(config.csvDir) : false,
     importing: importState.importing,
@@ -241,16 +255,16 @@ api.get('/status', (_req, res) => {
 
 api.post('/config', (req, res) => {
   const { csvDir, saveName } = req.body as { csvDir?: string; saveName?: string };
-  if (!csvDir) return res.status(400).json({ error: 'csvDir is required' });
-  saveConfig({ csvDir, saveName: saveName ?? null });
-  if (fs.existsSync(csvDir)) {
-    importState.importing = true; // visible to /status before the import starts
-    setImmediate(() => {
-      importState.importing = false;
-      void runImport(csvDir);
-    });
-    startWatcher(csvDir);
+  if (typeof csvDir !== 'string' || !csvDir) return res.status(400).json({ error: 'csvDir is required' });
+  if (importState.importing) return res.status(409).json({ error: 'Wait for the current import to finish.' });
+  if (!fs.existsSync(csvDir) || !fs.statSync(csvDir).isDirectory()) {
+    return res.status(400).json({ error: 'CSV directory not found.' });
   }
+  invalidateSaveScope();
+  stopWatcher();
+  saveConfig({ csvDir, saveName: typeof saveName === 'string' ? saveName : null });
+  void runImport(csvDir);
+  if (loadSettings().autoImport) startWatcher(csvDir);
   res.json({ ok: true });
 });
 

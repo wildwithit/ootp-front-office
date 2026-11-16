@@ -13,6 +13,7 @@ export interface Status {
   exportedAt?: string;
   configured: boolean;
   saveName: string | null;
+  saveScope?: string | null;
   csvDir: string | null;
   csvDirExists: boolean;
   importing: boolean;
