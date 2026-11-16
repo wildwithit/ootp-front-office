@@ -38,9 +38,10 @@ Optional migration starts with a user-authorized, offline copy of the original p
 - `rangers-history.db` adds save- and organization-scoped statistical checkpoints (schema v1) and GM philosophy (v2). The upgrade preserves existing checkpoints. A backup/restore fixture verifies the pre-upgrade history and legacy watchlist and notes can be opened separately from the upgraded file.
 - A save's identity is its canonical CSV-directory path, hashed locally, plus its OOTP organization ID. Two paths with the same display name stay separate. Re-import the same directory to retain continuity. A moved or copied export directory starts new history; leave an established export at its old path if you want to keep adding to its history. Dedicate one directory to each save.
 - Statistical checkpoints retain distinct captured exports by game date and content. They include per-club and player season lines, standings, assignments, roster and availability fields, and financial totals present in the export. These are observations at import time. They can establish what changed between exports, with no precise event date implied.
-- Trade exposure shows full annual salaries, identified guarantees, options, signed extensions and the transferable share after any existing retention. Year alignment uses the exported current salary slot. Missing option flags, buyouts and future arbitration salaries remain unknown. A scheduled payroll warning uses available exported payroll totals and assumes listed option salaries are paid. It is a user guideline and the owner budget remains a separate figure.
+- Trade exposure shows full annual salaries, identified guarantees, options, signed extensions and the transferable share after any existing retention. Year alignment uses the exported current salary slot. The app shows buyouts recorded in the export and flags opt-outs. Missing option terms, opt-out timing and future arbitration salaries remain unknown. A scheduled payroll warning uses available exported payroll totals and assumes listed option salaries are paid. It is a user guideline and the owner budget remains a separate figure.
 - Final Mac check: 734 tests across 92 files, TypeScript, Vite, Electron build, and local macOS packaging passed. The Apple Silicon disk image checksum passed. The packaged renderer imported 34 synthetic CSVs, saved the template and readability controls, opened Rosters and Payroll, and displayed a protected-player flag and payroll warning in Trade Center. Reimport and app restart preserved strategy, settings and a single checkpoint. Export hashes matched before and after.
-- Live provider judgment, a representative real export, migration of real files, and Intel runtime remain to be verified before using the custom edition with a live save.
+- The isolated representative OOTP 27 export imported and reimported on the signed Apple Silicon app, with one unchanged checkpoint. Team batting and pitching totals, roster assignments, player protections, payroll, option buyouts, prior retention, and a signed extension reconciled to the export. The renderer showed the buyout after restart. The archive and copied CSVs matched their original checksums. Checkpoint pitching and contract exposure fixes brought the test count to 736.
+- Verification with a later game date, live provider judgment, migration of real files, and Intel runtime remain open.
 
 ## Fixed AI judgment scenarios
 
@@ -66,6 +67,7 @@ Review in this order. Each PR targets the previous branch so its diff stays focu
 5. [AI strategy context](https://github.com/wildwithit/ootp-front-office/pull/5)
 6. [Individual trade value](https://github.com/wildwithit/ootp-front-office/pull/6)
 7. [Contract and payroll exposure](https://github.com/wildwithit/ootp-front-office/pull/7)
+8. [OOTP 27 export compatibility](https://github.com/wildwithit/ootp-front-office/pull/8)
 
 ## Phase 2
 
