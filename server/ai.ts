@@ -1,3 +1,4 @@
+import { strategyContext } from './gmPhilosophy.js';
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -147,7 +148,7 @@ async function generateBriefing(orgId: number): Promise<void> {
     `these rules rather than the modern game. Be direct and decision-oriented: what happened, what ` +
     `needs a decision now, what to watch. Ground everything in the provided data with real numbers. ` +
     `Structure with short markdown headers (## Status, ## Decisions Needed, ## Watch List, ` +
-    `## Recommendation of the Week). Keep it under 500 words. ${VALUE_PERCENTILE_NOTE}`,
+    `## Recommendation of the Week). Keep it under 500 words. ${VALUE_PERCENTILE_NOTE}\n\n${strategyContext(orgId)}`,
     `Today is ${context.gameDate}, ${context.seasonYear} season. Organizational data:\n\n` +
       JSON.stringify(context, null, 1),
     16000,
@@ -190,7 +191,7 @@ aiRoutes.post('/briefing/:orgId', (req, res) => {
  * and every reply after it, so the follow-ups do not drift into a different
  * man with different standards halfway down the thread.
  */
-function tradeSystem(voice: Persona, orgLabel: string | undefined, leagueId?: number): string {
+function tradeSystem(orgId: number, voice: Persona, orgLabel: string | undefined, leagueId?: number): string {
   const who =
     voice.name === 'the front office'
       ? `You are the front office of ${orgLabel ?? 'this club'}`
@@ -206,6 +207,7 @@ function tradeSystem(voice: Persona, orgLabel: string | undefined, leagueId?: nu
       : '') +
     // The desk is the one place the deadline is always the question
     (leagueId !== undefined ? calendarBriefing(leagueId) + '\n\n' : '') +
+    strategyContext(orgId) + '\n\n' +
     `"weGive" leaves the organisation; "weReceive" joins it.\n\n` +
       `Judge the deal as a roster decision, not an exchange of ratings. In particular:\n` +
       `- Say what each man actually is — his position, his role if he pitches, and the level he is ` +
@@ -244,15 +246,18 @@ function tradeSystem(voice: Persona, orgLabel: string | undefined, leagueId?: nu
       `- "totals" holds the same value, talent and salary figures shown on the page beside your ` +
     `answer. Quote those if you quote totals at all, so the two never disagree — but a verdict ` +
     `that is only those totals restated is not worth writing.\n\n` +
+    `Weigh club fit and opposing-club motivation independently. Use counterparty needs, ` +
+    `financial constraints, competitive posture and the trade block where available. If a fact is absent, ` +
+    `say what you cannot verify. Any counteroffer is hypothetical. Do not predict the game's acceptance. ` +
     `Never invent a number that is not in the data you are given.`
   );
 }
 
 /** The opening verdict's shape. Replies are conversation and are left alone. */
 const VERDICT_FORMAT =
-  '\n\nAnswer in short markdown: a one-line **Verdict** (Accept / Reject / Needs a sweetener), ' +
-  'then 4-6 sentences of reasoning that name players and cite figures, then a suggested ' +
-  'adjustment if one would fix it. Under 220 words.';
+  '\n\nUse two short sections. **Organizational recommendation** gives Accept, Reject, Hold, or Needs a sweetener, ' +
+  'with rationale for our roster, strategy and exposure. **Trade realism** independently explains the opposing club’s likely motivation ' +
+  'or reason to decline. Suggest a realistic alternate package, removed asset, or salary retention when warranted. Under 220 words.';
 
 /**
  * The trade desk, with the run of the organisation.
@@ -336,10 +341,10 @@ aiRoutes.post('/trade/ai-eval', async (req, res) => {
   if (!tableExists('players')) return res.status(400).json({ error: 'No data imported yet' });
   const body = req.body as TradeBody;
   try {
-    const { voice, context, leagueId } = tradeSetup(body);
+    const { orgId, voice, context, leagueId } = tradeSetup(body);
     let notice: FallbackNotice | null = null;
     const verdict = await askTheDesk(
-      tradeSystem(voice, body.orgLabel, leagueId) + VERDICT_FORMAT,
+      tradeSystem(orgId, voice, body.orgLabel, leagueId) + VERDICT_FORMAT,
       [{ role: 'user', content: JSON.stringify(context, null, 1) }],
       (n) => { notice = n; }
     );
@@ -364,14 +369,14 @@ aiRoutes.post('/trade/ai-reply', async (req, res) => {
   const body = req.body as TradeBody;
   if (!body.message?.trim()) return res.status(400).json({ error: 'Nothing to send' });
   try {
-    const { voice, context, leagueId } = tradeSetup(body);
+    const { orgId, voice, context, leagueId } = tradeSetup(body);
     let notice: FallbackNotice | null = null;
     const history = (body.thread ?? [])
       .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content?.trim())
       // Enough to keep the argument coherent without resending an hour of it
       .slice(-12);
     const reply = await askTheDesk(
-      tradeSystem(voice, body.orgLabel, leagueId) +
+      tradeSystem(orgId, voice, body.orgLabel, leagueId) +
         '\n\nYou have already given your verdict on this deal and are now being asked about it. ' +
         'Answer the question actually put to you, in a few sentences — no headings, and do not ' +
         'restate the verdict unless it has changed. If it has changed, say so plainly.\n\n' +
