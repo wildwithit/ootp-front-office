@@ -3,6 +3,7 @@ import {
   apiDelete, apiGet, apiPost, desktopBridge, exportStaticSite, getExportProgress, triggerImport,
   type ExportProgress, type Org, type SaveInfo, type SiteExportResult, type Status,
 } from '../api';
+import { GMPhilosophy } from './GMPhilosophy';
 import { FolderPicker } from '../FolderPicker';
 import { UpdatePanel } from '../Updater';
 import { ReleaseNotes } from '../ReleaseNotes';
@@ -425,6 +426,17 @@ export function Settings({
           </select>
         </div>
       </section>
+
+      {orgId !== null && status.saveScope && !status.importing && (
+        <GMPhilosophy key={`${status.saveScope}:${orgId}`} saveKey={status.saveScope}
+          orgId={orgId} orgName={orgs.find((o) => o.team_id === orgId)?.label ?? 'Selected organization'} />
+      )}
+      {orgId !== null && !status.saveScope && !status.importing && (
+        <section className="settings-block">
+          <h2>GM Philosophy</h2>
+          <p className="muted">Refresh the selected CSV export to edit its GM philosophy.</p>
+        </section>
+      )}
 
       <section className="settings-block">
         <h2>Data</h2>
