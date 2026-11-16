@@ -33,6 +33,7 @@ import { Players } from './pages/Players';
 import { Standings } from './pages/Standings';
 import { PlayerModal } from './playerModal';
 import { Nav, type NavEntry } from './Nav';
+import { applyReadability } from './Readability';
 import { applyTeamTheme, type ThemeMode } from './theme';
 import { TeamLogo , setLogoToken } from './TeamLogo';
 import { FolderPicker } from './FolderPicker';
@@ -242,6 +243,10 @@ export function App() {
     return () => mq.removeEventListener('change', onChange);
   }, []);
   const mode: ThemeMode = preference === 'system' ? systemMode : preference;
+
+  useEffect(() => {
+    applyReadability(document.documentElement, appSettings?.readability);
+  }, [appSettings?.readability]);
 
   // Re-theme the whole app around the selected organization's colors
   useEffect(() => {

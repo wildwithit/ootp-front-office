@@ -3,6 +3,8 @@ import {
   apiDelete, apiGet, apiPost, desktopBridge, exportStaticSite, getExportProgress, triggerImport,
   type ExportProgress, type Org, type SaveInfo, type SiteExportResult, type Status,
 } from '../api';
+import { Readability } from '../Readability';
+import { DEFAULT_READABILITY, type Readability as ReadabilityPreferences } from '../../shared/readability';
 import { GMPhilosophy } from './GMPhilosophy';
 import { FolderPicker } from '../FolderPicker';
 import { UpdatePanel } from '../Updater';
@@ -30,6 +32,7 @@ interface ProvidersResponse {
   keys: Record<ProviderId, ApiKeyStatus>;
 }
 export interface AppSettings {
+  readability?: ReadabilityPreferences;
   autoImport: boolean;
   useTeamColors: boolean;
   defaultOrgId: number | null;
@@ -546,6 +549,9 @@ export function Settings({
 
       <section className="settings-block">
         <h2>Display</h2>
+        <Readability value={settings.readability} onChange={(patch) => void update({
+          readability: { ...(settings.readability ?? DEFAULT_READABILITY), ...patch },
+        })} />
         <div className="settings-row">
           <div>
             <strong>Use team colors</strong>

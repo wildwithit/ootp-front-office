@@ -42,3 +42,17 @@ describe('POST /settings', () => {
     for (const field of await booleans()) expect(after[field]).toBe(before[field]);
   });
 });
+
+it('persists readability, validates the choices and preserves theme', async () => {
+  const { settings: before } = await request('/api/settings');
+  const { settings } = await post('/api/settings', {
+    readability: { bodyFont: 'serif', bodySize: 18, tableSize: 16, reportStyle: 'reading', density: 'comfortable' },
+  });
+  expect(settings.readability).toEqual({
+    bodyFont: 'serif', bodySize: 18, tableSize: 16, reportStyle: 'reading', density: 'comfortable',
+  });
+  await post('/api/settings', { readability: { bodySize: 90, bodyFont: 'missing', density: 'compact' } });
+  const { settings: reloaded } = await request('/api/settings');
+  expect(reloaded.readability).toEqual({ ...settings.readability, density: 'compact' });
+  expect(reloaded.theme).toBe(before.theme);
+});

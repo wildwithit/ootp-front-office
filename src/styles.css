@@ -35,7 +35,7 @@ body {
     var(--bg);
   transition: background-color 0.35s ease;
   color: var(--text);
-  font: 14px/1.5 var(--font-body);
+  font: var(--body-size, 14px)/1.5 var(--font-body);
 }
 
 /* Fills the window. Dense tables are the point of this app, so a wide monitor
@@ -2420,3 +2420,20 @@ tr.ours td:first-child { border-left: 3px solid var(--accent); }
 .philosophy-fields input { width: min(100%, 340px); }
 .philosophy-fields .settings-actions { justify-content: flex-start; flex-wrap: wrap; }
 .philosophy-players { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+
+
+:root[data-body-font="serif"] { --font-body: var(--font-serif); }
+:root[data-table-size="custom"] th, :root[data-table-size="custom"] td { font-size: var(--table-text-size); }
+:root[data-density="comfortable"] :is(th:not(.sortable), td, th.sortable button) { padding-block: 9px; }
+:root[data-report-style="reading"] :is(.briefing-body, .ai-verdict, .story-body, .recap-summary, .imsg-bubble, .paper-article p, .paper-briefs) {
+  font-family: var(--font-body);
+  font-size: max(16px, var(--body-size, 14px));
+  line-height: 1.75;
+}
+:root[data-report-style="reading"] .briefing-body { max-width: 76ch; }
+:root[data-report-style="reading"] :is(.briefing-body h4, .trade-speaker) {
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.9em;
+}

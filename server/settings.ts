@@ -1,3 +1,4 @@
+import { DEFAULT_READABILITY, mergeReadability, type Readability } from '../shared/readability.js';
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,6 +20,7 @@ import { startWatcher, stopWatcher } from './watcher.js';
  */
 
 export interface Settings {
+  readability: Readability;
   autoImport: boolean;
   useTeamColors: boolean;
   defaultOrgId: number | null;
@@ -78,6 +80,7 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
+  readability: DEFAULT_READABILITY,
   provider: 'anthropic',
   models: {},
   autoImport: true,
@@ -121,7 +124,8 @@ const KEY_PATH = path.join(DATA_DIR, 'credentials.json');
 
 export function loadSettings(): Settings {
   try {
-    return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')) };
+    const stored = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
+    return { ...DEFAULTS, ...stored, readability: mergeReadability(DEFAULT_READABILITY, stored?.readability) };
   } catch {
     return { ...DEFAULTS };
   }
@@ -315,7 +319,7 @@ settingsRoutes.put('/next-season-budget/:orgId', (req, res) => {
 settingsRoutes.post('/settings', (req, res) => {
   const body = req.body as Partial<Settings>;
   const previous = loadSettings();
-  const next: Settings = { ...previous };
+  const next: Settings = { ...previous, readability: mergeReadability(previous.readability, body.readability) };
   /*
    * Every boolean setting, taken from the defaults rather than listed here.
    *
