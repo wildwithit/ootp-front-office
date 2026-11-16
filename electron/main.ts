@@ -11,7 +11,15 @@ import { initUpdater } from './updater.js';
 
 // Writable state must live outside the app bundle, which is read-only once
 // packaged. Set before importing the server so its module-level paths resolve.
-process.env.OOTP_FO_DATA_DIR ??= app.getPath('userData');
+const PRODUCT_NAME = 'Rangers Front Office';
+app.setName(PRODUCT_NAME);
+app.setAppUserModelId('com.wildwithit.rangersfrontoffice');
+const desktopData = path.resolve(process.env.OOTP_FO_DATA_DIR || path.join(
+  app.getPath('appData'), app.isPackaged ? PRODUCT_NAME : `${PRODUCT_NAME} Development`,
+));
+fs.mkdirSync(desktopData, { recursive: true });
+app.setPath('userData', desktopData);
+process.env.OOTP_FO_DATA_DIR = desktopData;
 process.env.OOTP_FO_APP_ROOT ??= app.isPackaged
   ? process.resourcesPath
   : path.resolve(__dirname, '..');
@@ -84,7 +92,7 @@ async function createWindow(): Promise<void> {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#0c231a',
-    title: 'OOTP Front Office',
+    title: PRODUCT_NAME,
     show: false,
     webPreferences: {
       // The renderer is our own local UI and needs no Node access
@@ -196,7 +204,7 @@ async function createWindow(): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     dialog.showErrorBox(
-      'OOTP Front Office could not start',
+      `${PRODUCT_NAME} could not start`,
       `The local server failed to start.\n\n${message}\n\nData folder:\n${process.env.OOTP_FO_DATA_DIR}`
     );
     app.quit();
@@ -267,7 +275,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     buildMenu();
-    initUpdater();
+    initUpdater({ disabledReason: 'Automatic updates are off for Rangers Front Office.' });
     void createWindow();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) void createWindow();

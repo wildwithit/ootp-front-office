@@ -326,7 +326,7 @@ export function App() {
         <div className="wordmark">
           <span className="wordmark-ball">⚾</span>
           <div>
-            <span className="wordmark-title">Front Office</span>
+            <span className="wordmark-title">Rangers Front Office</span>
             <span className="wordmark-sub">OOTP Companion</span>
           </div>
         </div>

@@ -88,7 +88,7 @@ export function UpdatePanel() {
           )}
           {/* The notes themselves are in the app now, below this panel. This
               is the download page, which is what it was always actually for */}
-          <button onClick={openReleases}>Downloads on GitHub</button>
+          {state.status !== 'unsupported' && <button onClick={openReleases}>Downloads on GitHub</button>}
         </div>
       </div>
 
