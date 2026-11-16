@@ -1,6 +1,6 @@
 # Rangers Front Office development
 
-Baseline: upstream 0.42.0, commit `972c2788f60bf63a4a292193d55805ddb6ca3657` on the authorized fork's `feature/rangers-custom-phase1`. Apple Silicon, Node 24.2.0. Clean upstream `npm ci`, 709 tests, TypeScript, Vite build, and Electron build passed.
+Baseline: upstream 0.42.0, commit `972c2788f60bf63a4a292193d55805ddb6ca3657` on the authorized fork's `feature/rangers-custom-phase1`. The original upstream is at 0.43.0 (`cfed84b4226f8d01b106c91b59eedf8f3178b59f`). This work uses the authorized fork baseline. Apple Silicon, Node 24.2.0. Clean baseline `npm ci`, 709 tests, TypeScript, Vite build, and Electron build passed.
 
 | Existing surfaces | Implementation and preservation checks |
 | --- | --- |
@@ -31,7 +31,7 @@ The packaging command produces local ad hoc-signed artifacts with publishing and
 
 Keep the original installation and its profile in place. Export a backup of any custom profile by quitting the custom app and copying its entire data directory, including SQLite sidecars if present. Date backups and preserve the latest profile before testing any rollback. Launch the previous app or build against its own profile or a separate restored copy. Never roll a newer data directory back in place.
 
-Optional migration starts with a user-authorized, offline copy of the original profile. Test against a new empty custom directory, retaining the original and backup. Transfer `settings.json` and `history.db` using a verified SQLite backup, and import the corresponding copied CSV export. Existing watchlists and player notes use export player IDs and must only be associated with the matching save. Re-enter credentials through Settings. Do not copy the original live `config.json`, keys, database, or port settings into development. Migration must be rehearsed against copied data before a production transition.
+Optional migration starts with a user-authorized, offline copy of the original profile. Test against a new empty custom directory, retaining the original and backup. Transfer `settings.json` and `history.db` using a verified SQLite backup, and import the corresponding copied CSV export. Preserve the original save display name exactly so the legacy history, watchlist and notes resolve their saved key. Confirm the player IDs match before using the migrated profile. Re-enter credentials through Settings. Do not copy the original live `config.json`, keys, database, or port settings into development. Migration must be rehearsed against copied data before a production transition.
 
 ## Phase 1 storage and verification
 
@@ -39,7 +39,8 @@ Optional migration starts with a user-authorized, offline copy of the original p
 - A save's identity is its canonical CSV-directory path, hashed locally, plus its OOTP organization ID. Two paths with the same display name stay separate. Re-import the same directory to retain continuity. A moved or copied export directory starts new history; leave an established export at its old path if you want to keep adding to its history. Dedicate one directory to each save.
 - Statistical checkpoints retain distinct captured exports by game date and content. They include per-club and player season lines, standings, assignments, roster and availability fields, and financial totals present in the export. These are observations at import time. They can establish what changed between exports, with no precise event date implied.
 - Trade exposure shows full annual salaries, identified guarantees, options, signed extensions and the transferable share after any existing retention. Year alignment uses the exported current salary slot. Missing option flags, buyouts and future arbitration salaries remain unknown. A scheduled payroll warning uses available exported payroll totals and assumes listed option salaries are paid. It is a user guideline and the owner budget remains a separate figure.
-- The synthetic suite and signed Apple Silicon package exercise local behavior. Live provider judgment, real-file migration, very large exports and Intel runtime performance need separate verification before approving use with a live save.
+- Final Mac check: 734 tests across 92 files, TypeScript, Vite, Electron build, and local macOS packaging passed. The Apple Silicon disk image checksum passed. The packaged renderer imported 34 synthetic CSVs, saved the template and readability controls, opened Rosters and Payroll, and displayed a protected-player flag and payroll warning in Trade Center. Reimport and app restart preserved strategy, settings and a single checkpoint. Export hashes matched before and after.
+- Live provider judgment, a representative real export, migration of real files, and Intel runtime remain to be verified before using the custom edition with a live save.
 
 ## Fixed AI judgment scenarios
 
@@ -53,6 +54,18 @@ Use the same synthetic evidence for each model. Record the model ID, tested comm
 | Current savings, long liability | The incoming player earns $5M now and $25M for each of four future seasons. The outgoing player earns $15M now and reaches free agency. | Identify $10M in gross savings now and $100M in future exposure. Disclose any options, uncertainty or retention and give a recommendation. |
 | Slumping veteran | A veteran has a .620 OPS and .210 BABIP after 120 PA. His strikeout and walk rates and strong-contact indicators are near prior levels. | Identify the recovery case and its limits. Avoid guaranteeing regression or elevating one underlying metric over all other evidence. |
 | Buy or hold at the deadline | Texas is two games out of a playoff spot with a positive run differential, a shallow farm at shortstop and a high asking price for rental relief. | Weigh buying and holding, apply depth and payroll constraints, and state the evidence that would change the decision. |
+
+## Draft pull requests
+
+Review in this order. Each PR targets the previous branch so its diff stays focused.
+
+1. [Desktop identity and parity](https://github.com/wildwithit/ootp-front-office/pull/1)
+2. [Statistical checkpoints](https://github.com/wildwithit/ootp-front-office/pull/2)
+3. [GM Philosophy and protected players](https://github.com/wildwithit/ootp-front-office/pull/3)
+4. [Readability](https://github.com/wildwithit/ootp-front-office/pull/4)
+5. [AI strategy context](https://github.com/wildwithit/ootp-front-office/pull/5)
+6. [Individual trade value](https://github.com/wildwithit/ootp-front-office/pull/6)
+7. [Contract and payroll exposure](https://github.com/wildwithit/ootp-front-office/pull/7)
 
 ## Phase 2
 
