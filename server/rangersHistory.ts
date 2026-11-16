@@ -25,7 +25,23 @@ export function rangersHistory(): Database.Database {
         PRAGMA user_version = 1;
       `);
     })();
-  } else if (version !== 1) {
+  }
+  if (version <= 1) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE gm_philosophies (
+          save_key TEXT NOT NULL,
+          org_id INTEGER NOT NULL,
+          revision INTEGER NOT NULL,
+          guidance TEXT NOT NULL,
+          payroll_guideline INTEGER,
+          protected_players TEXT NOT NULL,
+          PRIMARY KEY(save_key, org_id)
+        );
+        PRAGMA user_version = 2;
+      `);
+    })();
+  } else if (version !== 2) {
     db.close();
     throw new Error('This Rangers history file needs a newer app version.');
   }

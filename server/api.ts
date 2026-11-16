@@ -40,6 +40,7 @@ import { scheduleRoutes } from './schedule.js';
 import { payrollRoutes } from './payroll.js';
 import { trendsRoutes } from './trends.js';
 import { chatRoutes } from './chat.js';
+import { philosophyRoutes } from './gmPhilosophy.js';
 import { captureCheckpoints, checkpointRoutes } from './checkpoints.js';
 import { activeSaveScope, invalidateSaveScope, recordSaveScope, saveKey } from './saveScope.js';
 
@@ -65,6 +66,7 @@ api.use(chatRoutes);
 api.use(playerRoutes);
 api.use(historyRoutes);
 api.use(checkpointRoutes);
+api.use(philosophyRoutes);
 api.use(dashboardRoutes);
 api.use(rosterOpsRoutes);
 api.use(tradeRoutes);

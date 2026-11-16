@@ -29,11 +29,23 @@ export default async function request(path: string): Promise<any> {
 }
 
 export async function post(path: string, body: unknown): Promise<any> {
+  return (await send(path, body, 'POST')).json();
+}
+
+export async function put(path: string, body: unknown): Promise<any> {
+  return (await send(path, body, 'PUT')).json();
+}
+
+export async function postText(path: string, body: unknown): Promise<string> {
+  return (await send(path, body, 'POST')).text();
+}
+
+async function send(path: string, body: unknown, method: 'POST' | 'PUT'): Promise<Response> {
   const res = await fetch(`${await server()}${path}`, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${path} -> ${res.status} ${await res.text()}`);
-  return res.json();
+  return res;
 }

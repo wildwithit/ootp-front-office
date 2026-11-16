@@ -2412,3 +2412,11 @@ tr.ours td:first-child { border-left: 3px solid var(--accent); }
    right field when it is one deep and three men can stand there. */
 .depth-player.secondary .depth-name { opacity: 0.72; }
 .depth-player.secondary .depth-meta { opacity: 0.6; font-style: italic; }
+
+
+.philosophy-fields { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.philosophy-fields label:not(:first-child) { margin-top: 8px; }
+.philosophy-fields textarea { width: 100%; resize: vertical; font: inherit; }
+.philosophy-fields input { width: min(100%, 340px); }
+.philosophy-fields .settings-actions { justify-content: flex-start; flex-wrap: wrap; }
+.philosophy-players { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
