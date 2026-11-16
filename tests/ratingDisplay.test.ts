@@ -44,7 +44,7 @@ describe('showing a grade', () => {
     const offenders = files.filter((path) => {
       const text = readFileSync(path, 'utf8');
       if (path.endsWith('ratingScale.ts')) return false;
-      return GRADE.test(text) && !text.includes('formatRating');
+      return GRADE.test(text) && !text.includes('formatRating') && !text.includes("/RatingGrade'");
     });
     expect(
       offenders.map((f) => f.replace(SRC, '')),

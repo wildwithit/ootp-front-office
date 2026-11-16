@@ -7,6 +7,7 @@ import { controlAfterThisSeason, serviceRemainingThisSeason } from './contracts.
 import { playerTransactions, scoutingReport } from './playerfile.js';
 import { DATE_KEY } from './dashboard.js';
 import { NO_TIMETABLE } from './health.js';
+import { computeBatting, computePitching, leagueBaseline, type RawBatting, type RawPitching } from './stats.js';
 
 export const playerRoutes = Router();
 
@@ -111,7 +112,7 @@ playerRoutes.get('/player/:id', (req, res) => {
       // between seasons in any save that runs a few
       `SELECT p.*, t.name AS team_name, t.nickname AS team_nickname, t.level AS team_level,
               t.league_id AS team_league,
-              o.name AS org_name, o.nickname AS org_nickname
+              o.name AS org_name, o.nickname AS org_nickname, o.league_id AS org_league
        FROM players p LEFT JOIN teams t ON t.team_id = p.team_id
        LEFT JOIN teams o ON o.team_id = p.organization_id
        WHERE p.player_id = ?`
@@ -139,16 +140,17 @@ playerRoutes.get('/player/:id', (req, res) => {
   // Year-by-year batting, one row per year+team stint
   const batYears = db
     .prepare(
-      `SELECT s.year, s.level_id, t.abbr AS team,
+      `SELECT s.year, s.level_id, s.league_id AS leagueId, s.team_id AS teamId, t.abbr AS team,
               SUM(s.pa) AS pa, SUM(s.ab) AS ab, SUM(s.h) AS h, SUM(s.d) AS d, SUM(s.t) AS t3,
               SUM(s.hr) AS hr, SUM(s.r) AS r, SUM(s.rbi) AS rbi, SUM(s.bb) AS bb, SUM(s.k) AS k,
-              SUM(s.sb) AS sb, SUM(s.hp) AS hp, SUM(s.sf) AS sf, ROUND(SUM(s.war), 1) AS war
+              SUM(s.sb) AS sb, SUM(s.cs) AS cs, SUM(s.hp) AS hp, SUM(s.sf) AS sf, SUM(s.ibb) AS ibb,
+              ROUND(SUM(s.war), 1) AS war
        FROM players_career_batting_stats s LEFT JOIN teams t ON t.team_id = s.team_id
        -- Professional seasons only. A drafted amateur's school year is stored
        -- here under no league, and it belongs to neither the career table nor
        -- the hover card's "what he is doing now" line
        WHERE s.player_id = ? AND s.split_id = 1 AND s.league_id != 0
-       GROUP BY s.year, s.team_id ORDER BY s.year DESC, pa DESC`
+       GROUP BY s.year, s.team_id, s.league_id, s.level_id ORDER BY s.year DESC, pa DESC`
     )
     .all(id) as Array<Record<string, number | string | null>>;
   const battingYears = batYears
@@ -169,13 +171,14 @@ playerRoutes.get('/player/:id', (req, res) => {
 
   const pitchYears = db
     .prepare(
-      `SELECT s.year, s.level_id, t.abbr AS team,
+      `SELECT s.year, s.level_id, s.league_id AS leagueId, s.team_id AS teamId, t.abbr AS team,
               SUM(s.g) AS g, SUM(s.gs) AS gs, SUM(s.w) AS w, SUM(s.l) AS l, SUM(s.s) AS sv,
               SUM(s.outs) AS outs, SUM(s.er) AS er, SUM(s.ha) AS ha, SUM(s.bb) AS bb,
-              SUM(s.k) AS k, ROUND(SUM(s.war), 1) AS war
+              SUM(s.k) AS k, SUM(s.hp) AS hp, SUM(s.bf) AS bf, SUM(s.hra) AS hra, SUM(s.hld) AS hld,
+              ROUND(SUM(s.war), 1) AS war
        FROM players_career_pitching_stats s LEFT JOIN teams t ON t.team_id = s.team_id
        WHERE s.player_id = ? AND s.split_id = 1 AND s.league_id != 0
-       GROUP BY s.year, s.team_id ORDER BY s.year DESC, outs DESC`
+       GROUP BY s.year, s.team_id, s.league_id, s.level_id ORDER BY s.year DESC, outs DESC`
     )
     .all(id) as Array<Record<string, number | string | null>>;
   const pitchingYears = pitchYears
@@ -190,6 +193,32 @@ playerRoutes.get('/player/:id', (req, res) => {
         whip: ip ? Number((((y.bb as number) + (y.ha as number)) / ip).toFixed(2)) : null,
       };
     });
+
+  const currentLeague = (p.team_league ?? p.org_league) as number | null;
+  const cardYear = currentLeague && tableExists('leagues') ? seasonYear(currentLeague)
+    : tableExists('leagues')
+      ? (db.prepare('SELECT MAX(season_year) AS year FROM leagues').get() as { year: number | null }).year
+      : null;
+  const recentLine = (lines: Array<Record<string, number | string | null>>) => {
+    const season = lines.filter((line) => line.year === cardYear && typeof line.leagueId === 'number');
+    // Prefer the player's current stint, then his level. Each line retains its own playing context.
+    return season.find((line) => line.teamId === p.team_id && line.level_id === p.team_level && line.leagueId === p.team_league)
+      ?? season.find((line) => line.level_id === p.team_level)
+      ?? season[0];
+  };
+  const statLine = (line: ReturnType<typeof recentLine>, group: 'batting' | 'pitching') => {
+    if (!line || cardYear === null) return null;
+    const baseline = leagueBaseline(line.leagueId as number, cardYear, line.level_id as number);
+    const teamId = line.teamId as number;
+    const stats = group === 'batting'
+      ? computeBatting(line as Partial<RawBatting>, baseline, teamId)
+      : computePitching(line as Partial<RawPitching>, baseline, teamId);
+    return { year: cardYear, team: line.team, levelName: line.levelName, stats };
+  };
+  const quickLook = {
+    batting: statLine(recentLine(battingYears), 'batting'),
+    pitching: statLine(recentLine(pitchingYears), 'pitching'),
+  };
 
   // Contract with forward salary schedule
   const contract = contractsByPlayer().get(id) ?? null;
@@ -394,6 +423,7 @@ playerRoutes.get('/player/:id', (req, res) => {
   res.json({
     player_id: id,
     contact,
+    quickLook,
     careerEarnings: earnings?.total ?? null,
     /*
      * Composed from his own ratings rather than quoted: the export carries no

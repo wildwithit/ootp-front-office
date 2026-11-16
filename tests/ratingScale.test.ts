@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { formatRating, formatRatingPair, setRatingRounding } from '../src/ratingScale.js';
+import { formatRating, formatRatingPair, ratingBand, setRatingScaleMax, setRatingRounding } from '../src/ratingScale.js';
 
 /**
  * A display preference, and only that. The point of the test is the part that
@@ -76,4 +76,18 @@ describe('the toggle reproduces OOTP’s own five-step grade', () => {
       expect(formatRating(oa)).toBe(String(Math.round(oa / 5) * 5));
     }
   });
+});
+
+
+it('uses OOTP grade boundaries and follows the displayed rating when rounded', () => {
+  setRatingScaleMax(80);
+  setRatingRounding(false);
+  expect([29, 30, 39, 40, 49, 50, 59, 60, 69, 70].map(ratingBand))
+    .toEqual([0, 1, 1, 2, 2, 3, 3, 4, 4, 5]);
+  setRatingRounding(true);
+  expect(ratingBand(68)).toBe(5);
+  setRatingScaleMax(8);
+  expect([2, 3, 4, 5, 6, 7, 8].map(ratingBand)).toEqual([0, 1, 2, 3, 4, 5, 5]);
+  setRatingScaleMax(80);
+  setRatingRounding(false);
 });

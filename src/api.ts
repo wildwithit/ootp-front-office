@@ -216,6 +216,13 @@ export interface StorylineCache {
   job?: { state: 'idle' | 'running' | 'done' | 'error'; startedAt: string | null; finishedAt: string | null; error: string | null };
 }
 
+export interface PlayerQuickLookLine {
+  year: number;
+  team: string | null;
+  levelName: string;
+  stats: Record<string, number | null>;
+}
+
 export interface PlayerDossier {
   player_id: number;
   name: string;
@@ -258,6 +265,7 @@ export interface PlayerDossier {
     noTrade: boolean;
     salarySchedule: Array<{ year: number; salary: number }>;
   } | null;
+  quickLook?: { batting: PlayerQuickLookLine | null; pitching: PlayerQuickLookLine | null };
   battingYears: Array<Record<string, number | string | null>>;
   pitchingYears: Array<Record<string, number | string | null>>;
   gameLogs: Array<Record<string, number | string | null>>;
@@ -353,6 +361,7 @@ export interface DepthPlayer {
 export interface Prospect {
   player_id: number;
   name: string;
+  lastName?: string;
   age: number;
   team: string;
   level: number;

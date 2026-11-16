@@ -41,7 +41,8 @@ Optional migration starts with a user-authorized, offline copy of the original p
 - Trade exposure shows full annual salaries, identified guarantees, options, signed extensions and the transferable share after any existing retention. Year alignment uses the exported current salary slot. The app shows buyouts recorded in the export and flags opt-outs. Missing option terms, opt-out timing and future arbitration salaries remain unknown. A scheduled payroll warning uses available exported payroll totals and assumes listed option salaries are paid. It is a user guideline and the owner budget remains a separate figure.
 - Final Mac check: 734 tests across 92 files, TypeScript, Vite, Electron build, and local macOS packaging passed. The Apple Silicon disk image checksum passed. The packaged renderer imported 34 synthetic CSVs, saved the template and readability controls, opened Rosters and Payroll, and displayed a protected-player flag and payroll warning in Trade Center. Reimport and app restart preserved strategy, settings and a single checkpoint. Export hashes matched before and after.
 - The isolated representative OOTP 27 export imported and reimported on the signed Apple Silicon app, with one unchanged checkpoint. Team batting and pitching totals, roster assignments, player protections, payroll, option buyouts, prior retention, and a signed extension reconciled to the export. The renderer showed the buyout after restart. The archive and copied CSVs matched their original checksums. Checkpoint pitching and contract exposure fixes brought the test count to 736.
-- Verification with a later game date, live provider judgment, migration of real files, and Intel runtime remain open.
+- An additional export from a later in-game date created a second checkpoint at the same save path. The signed renderer verified Prospect sorting by signal, name, age, and position, the OOTP grade colors, hitter and pitcher Quick Look, and a stat selection carried into a reopened card. All 739 tests passed.
+- Live provider judgment, migration of real files, and Intel runtime remain open.
 
 ## Fixed AI judgment scenarios
 
@@ -68,6 +69,7 @@ Review in this order. Each PR targets the previous branch so its diff stays focu
 6. [Individual trade value](https://github.com/wildwithit/ootp-front-office/pull/6)
 7. [Contract and payroll exposure](https://github.com/wildwithit/ootp-front-office/pull/7)
 8. [OOTP 27 export compatibility](https://github.com/wildwithit/ootp-front-office/pull/8)
+9. [Prospect sorting and player Quick Look](https://github.com/wildwithit/ootp-front-office/pull/9)
 
 ## Phase 2
 

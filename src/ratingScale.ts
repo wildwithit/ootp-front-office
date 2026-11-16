@@ -70,3 +70,19 @@ export function formatRatingPair(
   const pot = formatRating(potential);
   return pot === oa ? oa : `${oa}${arrow}${pot}`;
 }
+
+// Published OOTP rating colors, adapted to the numeric rating scale in the save.
+const bandMinimums: Record<number, number[]> = {
+  5: [2, 3, 3, 4, 5],
+  8: [3, 4, 5, 6, 7],
+  10: [3, 4, 5, 7, 9],
+  20: [5, 9, 13, 17, 17],
+  80: [30, 40, 50, 60, 70],
+  100: [21, 30, 50, 70, 90],
+};
+
+export function ratingBand(value: number): number {
+  const grade = Number(formatRating(value));
+  const minimums = bandMinimums[scaleMax] ?? [0.2, 0.4, 0.6, 0.8, 0.9].map((v) => v * scaleMax);
+  return minimums.filter((minimum) => grade >= minimum).length;
+}

@@ -23,3 +23,22 @@ describe('career rows', () => {
     expect(d.battingYears[d.battingYears.length - 1].levelName).toBe('A');
   });
 });
+
+describe('quick look', () => {
+  it('uses the same rate calculations as the current-level roster stats', async () => {
+    const d = await request(`/api/player/${IDS.starter}`);
+    const roster = await request(`/api/roster/${IDS.mlbTeam}`);
+    const batting = roster.players.find((p: { player_id: number }) => p.player_id === IDS.starter).batting;
+    expect(d.quickLook.batting).toMatchObject({
+      year: SEASON, levelName: 'MLB', stats: {
+        pa: 200, wrcPlus: batting.wrcPlus, war: batting.war, kPct: batting.kPct, bbPct: batting.bbPct,
+      },
+    });
+    expect(d.quickLook.pitching).toBeNull();
+  });
+
+  it('leaves current stats unavailable when the player has only amateur data', async () => {
+    const d = await request(`/api/player/${IDS.draftee}`);
+    expect(d.quickLook).toEqual({ batting: null, pitching: null });
+  });
+});
