@@ -6,11 +6,7 @@ import { payingShare, salarySlotForYear, type ContractRow, type ExtensionRow } f
 import { leagueRules, seasonYear } from './valuation.js';
 import type { PlayerExposure, TradeExposure, TradeSalaryYear } from '../shared/tradeExposure.js';
 
-const optionFields = {
-  last_year_team_option: 'team option',
-  last_year_player_option: 'player option',
-  last_year_vesting_option: 'vesting option',
-} as const;
+const optionKinds = ['team', 'player', 'vesting'] as const;
 
 function money(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
@@ -66,10 +62,13 @@ export function tradeExposure(orgId: number, give: number[], receive: number[]):
       const slot = salarySlotForYear(completed !== null ? c! : blank, season, year,
         extensionFrom !== null ? extension : undefined);
       if (!slot) continue;
-      const final = slot.index === slot.row.years - 1;
-      const flags = (Object.keys(optionFields) as Array<keyof typeof optionFields>);
-      const options = final ? flags.filter((f) => slot.row[f] === 1).map((f) => optionFields[f]) : [];
-      const optionDataMissing = final && !flags.every((f) => slot.row[f] === 0 || slot.row[f] === 1);
+      const remainingSlots = slot.row.years - slot.index;
+      const optionPrefix = remainingSlots === 1 ? 'last_year_' : remainingSlots === 2 ? 'next_last_year_' : null;
+      const flags = optionPrefix ? optionKinds.map((kind) => slot.row[`${optionPrefix}${kind}_option`]) : [];
+      const options = optionKinds.flatMap((kind, index) => flags[index] === 1 ? [`${kind} option`] : []);
+      const optionDataMissing = (remainingSlots === 1 || flags.some((f) => f !== undefined)) &&
+        flags.some((f) => f !== 0 && f !== 1);
+      const optionBuyout = optionPrefix && options.length > 0 ? money(slot.row[optionPrefix + 'option_buyout']) : null;
       const salary = slot.index <= 14 ? money(slot.row[`salary${slot.index}`]) : null;
       // An existing retained share belongs to the original contract. A separately signed extension starts its own term.
       const retentionKnown = slot.source === 'extension' ||
@@ -79,7 +78,7 @@ export function tradeExposure(orgId: number, give: number[], receive: number[]):
         contract_team_id: c.contract_team_id, current_org: p?.org ?? null, retained: c.retained,
       }, p?.org ?? 0);
       const transferred = salary === null || !retentionKnown ? null : Math.round(salary * share);
-      years.push({ year, source: slot.source, salary, transferred, options, optionDataMissing,
+      years.push({ year, source: slot.source, salary, transferred, options, optionBuyout, optionDataMissing,
         retainedByPriorClub: salary === null || transferred === null ? null : salary - transferred });
     }
 
@@ -99,13 +98,18 @@ export function tradeExposure(orgId: number, give: number[], receive: number[]):
     const unknownTerm = c === undefined || (c !== undefined && completed === null) ||
       (extension !== undefined && extensionFrom === null) || extensionQuery === null || horizon < end ||
       (cs?.length ?? 0) > 1 || (es?.length ?? 0) > 1;
-    const guaranteedYears = years.filter((y) => !y.options.length && !y.optionDataMissing);
+    const optOutReported = [c, extension].some((term) =>
+      term && (term.opt_out > 0 || term.opt_out_relegation > 0));
+    const guaranteedYears = years.filter((y) => !y.options.length && !y.optionDataMissing &&
+      (!optOutReported || y.year === season));
     return {
       playerId, name: p?.name ?? `Player #${playerId}`,
       currentSalary: years.find((y) => y.year === season)?.salary ?? null,
       contractYears: c?.years ?? null, contractThrough, extensionFrom, extensionThrough,
       guaranteedKnown: guaranteedYears.reduce((total, y) => total + (y.salary ?? 0), 0),
-      guaranteedIncomplete: unknownTerm || guaranteedYears.some((y) => y.salary === null) || years.some((y) => y.optionDataMissing),
+      guaranteedIncomplete: unknownTerm || guaranteedYears.some((y) => y.salary === null) ||
+        years.some((y) => y.optionDataMissing || (optOutReported && y.year > season)),
+      optOutReported,
       control: control?.status === 'arbitration' ? `arbitration (year ${control.arbYear})` : control?.status ?? null,
       freeAgencyAfter: faEstimate,
       years,
@@ -142,7 +146,7 @@ export function tradeExposure(orgId: number, give: number[], receive: number[]):
           continue;
         }
         scheduledDelta += sign * line.transferred;
-        if (line.optionDataMissing) guaranteedDelta = null;
+        if (line.optionDataMissing || (player.optOutReported && year > season)) guaranteedDelta = null;
         else if (!line.options.length && guaranteedDelta !== null) guaranteedDelta += sign * line.transferred;
       }
     }

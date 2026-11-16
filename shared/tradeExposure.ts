@@ -5,6 +5,7 @@ export interface TradeSalaryYear {
   transferred: number | null;
   retainedByPriorClub: number | null;
   options: string[];
+  optionBuyout: number | null;
   optionDataMissing: boolean;
 }
 
@@ -18,6 +19,7 @@ export interface PlayerExposure {
   extensionThrough: number | null;
   guaranteedKnown: number;
   guaranteedIncomplete: boolean;
+  optOutReported: boolean;
   control: string | null;
   freeAgencyAfter: number | null;
   years: TradeSalaryYear[];

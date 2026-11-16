@@ -6,7 +6,8 @@ import { makeCopiedExport, waitForImport } from './copiedExport.js';
 
 it('shows protected players, raw value, scouting, ranks and scheduled payroll without folding options into guarantees', async () => {
   const orgId = IDS.mlbTeam;
-  db.prepare('UPDATE players_contract SET retained = 25, last_year_vesting_option = 1 WHERE player_id = ?')
+  db.exec('ALTER TABLE players_contract ADD COLUMN last_year_option_buyout INTEGER');
+  db.prepare('UPDATE players_contract SET retained = 25, last_year_vesting_option = 1, last_year_option_buyout = 3_600_000 WHERE player_id = ?')
     .run(IDS.tradedAway);
   db.prepare('UPDATE players_contract SET last_year_team_option = 1 WHERE player_id = ?').run(IDS.starter);
   db.prepare('UPDATE team_financials SET budget = ?, player_payroll = ?, player_payroll_next_season = ? WHERE team_id = ?')
@@ -30,7 +31,7 @@ it('shows protected players, raw value, scouting, ranks and scheduled payroll wi
     currentSalary: 20_000_000, guaranteedKnown: 20_000_000,
     years: [
       { year: SEASON, salary: 20_000_000, transferred: 15_000_000, retainedByPriorClub: 5_000_000 },
-      { year: SEASON + 1, options: ['vesting option'], retainedByPriorClub: 5_000_000 },
+      { year: SEASON + 1, options: ['vesting option'], optionBuyout: 3_600_000, retainedByPriorClub: 5_000_000 },
     ],
   });
   expect(exposure.outgoing[0]).toMatchObject({ guaranteedKnown: 10_000_000, guaranteedIncomplete: false,
@@ -64,4 +65,37 @@ it('preserves arbitration and pre-arbitration as service-based control with unkn
   expect(exposure.outgoing[0].control).toMatch(/arbitration/);
   expect(exposure.outgoing[0].freeAgencyAfter).toBeGreaterThan(SEASON);
   expect(exposure.outgoing[1].years.map((line: { year: number }) => line.year)).toEqual([SEASON, SEASON + 1]);
+});
+
+
+it('reads the penultimate option and buyout in the actual contract slot', async () => {
+  db.exec(`
+    ALTER TABLE players_contract ADD COLUMN next_last_year_team_option INTEGER DEFAULT 0;
+    ALTER TABLE players_contract ADD COLUMN next_last_year_player_option INTEGER DEFAULT 0;
+    ALTER TABLE players_contract ADD COLUMN next_last_year_vesting_option INTEGER DEFAULT 0;
+    ALTER TABLE players_contract ADD COLUMN next_last_year_option_buyout INTEGER DEFAULT 0;
+  `);
+  db.prepare('UPDATE players_contract SET last_year_team_option = 0, next_last_year_team_option = 1, next_last_year_option_buyout = ? WHERE player_id = ?')
+    .run(2_500_000, IDS.starter);
+  const { exposure } = await post('/api/trade/analyze', {
+    orgId: IDS.mlbTeam, sideA: [IDS.starter], sideB: [IDS.tradedAway],
+  });
+  expect(exposure.outgoing[0].years).toMatchObject([
+    { year: SEASON, options: ['team option'], optionBuyout: 2_500_000 },
+    { year: SEASON + 1, options: [], optionBuyout: null },
+  ]);
+});
+
+
+it('keeps future salary conditional when the export reports an opt-out', async () => {
+  db.exec('ALTER TABLE players_contract ADD COLUMN opt_out INTEGER DEFAULT 0');
+  db.prepare('UPDATE players_contract SET opt_out = 2 WHERE player_id = ?').run(IDS.extended);
+  const { exposure } = await post('/api/trade/analyze', {
+    orgId: IDS.mlbTeam, sideA: [IDS.extended], sideB: [IDS.tradedAway],
+  });
+  expect(exposure.outgoing[0]).toMatchObject({
+    optOutReported: true, guaranteedKnown: 8_000_000, guaranteedIncomplete: true,
+  });
+  expect(exposure.outgoing[0].years[1]).toMatchObject({ year: SEASON + 1, salary: 25_000_000 });
+  expect(exposure.payrollYears[1].guaranteedDelta).toBeNull();
 });
