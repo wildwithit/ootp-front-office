@@ -1,17 +1,12 @@
-appId: com.lsukev.ootpfrontoffice
-productName: OOTP Front Office
+appId: com.wildwithit.rangersfrontoffice
+productName: Rangers Front Office
 copyright: Copyright © 2026 Kevin Ivy
 
 directories:
   output: release
   buildResources: build
 
-# Artifact names must not contain spaces. The release job uploads with
-# `gh release upload`, and GitHub rewrites spaces to dots in asset names —
-# so "OOTP Front Office-0.2.0.zip" becomes "OOTP.Front.Office-0.2.0.zip" on
-# the release while latest-mac.yml still points at the original name, and
-# every update download 404s. Naming from ${name} keeps the local file, the
-# published asset, and the manifest entry byte-identical.
+# Keep artifacts distinct from upstream downloads.
 artifactName: ${name}-${version}-${arch}.${ext}
 
 files:
@@ -19,6 +14,7 @@ files:
   - build/main.cjs.map
   - build/preload.cjs
   - package.json
+  - LICENSE
 
 # The built frontend lives outside the asar archive so Express can serve it
 # from a real path, and so APP_ROOT (= resourcesPath) resolves ./dist.
@@ -35,9 +31,6 @@ mac:
   # electron-builder renders the .icns from this single high-res source
   icon: docs/icons/frontoffice.png
   target:
-    # dmg is what people download by hand; zip is what Squirrel.Mac needs to
-    # apply an in-place update — it cannot install from a dmg. Both must be
-    # published or auto-update silently fails on macOS.
     - target: dmg
       arch: [arm64, x64]
     - target: zip
@@ -65,12 +58,8 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
-  shortcutName: OOTP Front Office
+  shortcutName: Rangers Front Office
 
 linux:
   target: [AppImage]
   category: Game
-
-publish:
-  provider: github
-  releaseType: release

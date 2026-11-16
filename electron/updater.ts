@@ -59,16 +59,16 @@ function plainNotes(notes: UpdateInfo['releaseNotes']): string | null {
   return text.length > 0 ? text.slice(0, 4000) : null;
 }
 
-export function initUpdater(): void {
+export function initUpdater(options?: { disabledReason: string }): void {
   // In dev there is no packaged app to replace, and electron-updater throws
   // rather than no-oping. Surface that as a state the UI can explain.
-  if (!app.isPackaged) {
+  if (options || !app.isPackaged) {
     state = {
       status: 'unsupported',
       version: currentVersion(),
-      reason: 'Updates apply to the installed app. This is a development build.',
+      reason: options?.disabledReason ?? 'Updates apply to the installed app. This is a development build.',
     };
-    registerIpc(null);
+    registerIpc(null, options ? null : RELEASES_URL);
     return;
   }
 
@@ -132,7 +132,7 @@ export function initUpdater(): void {
   }, 8000);
 }
 
-function registerIpc(autoUpdater: typeof import('electron-updater').autoUpdater | null): void {
+function registerIpc(autoUpdater: typeof import('electron-updater').autoUpdater | null, releasesUrl: string | null = RELEASES_URL): void {
   ipcMain.handle('update:state', () => state);
 
   ipcMain.handle('update:check', async () => {
@@ -175,5 +175,5 @@ function registerIpc(autoUpdater: typeof import('electron-updater').autoUpdater 
     setImmediate(() => autoUpdater.quitAndInstall(false, true));
   });
 
-  ipcMain.handle('update:open-releases', () => shell.openExternal(RELEASES_URL));
+  ipcMain.handle('update:open-releases', () => releasesUrl ? shell.openExternal(releasesUrl) : undefined);
 }
