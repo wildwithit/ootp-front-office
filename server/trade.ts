@@ -1,6 +1,8 @@
+import { gmPhilosophy } from './gmPhilosophy.js';
+import { deadlineRead } from './posture.js';
 import { Router } from 'express';
 import { db, tableExists } from './db.js';
-import { LEVEL_NAMES, contractsByPlayer, leagueRules, mlbPercentiler, valuesByPlayer, type PlayerValue } from './valuation.js';
+import { LEVEL_NAMES, contractsByPlayer, leagueRules, mlbPercentiler, teamFinances, valuesByPlayer, type PlayerValue } from './valuation.js';
 import { controlAfterThisSeason, serviceRemainingThisSeason } from './contracts.js';
 import { padDate } from './rosterops.js';
 import { contactProfiles } from './battedball.js';
@@ -93,8 +95,12 @@ tradeRoutes.get('/trade/fits/:orgId', (req, res) => {
       .all(orgId) as Array<{ team_id: number }>
   ).map((r) => r.team_id);
 
+  const protectedIds = new Set(gmPhilosophy(orgId).protectedPlayers.map((player) => player.id));
+  const tradableSurplus = mine.surplus.map((spot) => ({
+    ...spot, players: spot.players.filter((player) => !protectedIds.has(player.player_id)),
+  })).filter((spot) => spot.players.length > 0);
   const myWeak = new Set(mine.weakest.map((w) => w.position));
-  const mySurplusPos = new Set(mine.surplus.map((s) => s.position));
+  const mySurplusPos = new Set(tradableSurplus.map((s) => s.position));
 
   const fits = otherOrgs
     .map((id) => orgProfile(id, values))
@@ -109,7 +115,7 @@ tradeRoutes.get('/trade/fits/:orgId', (req, res) => {
         score: theyNeed.length + theyOffer.length,
         theyNeed: theyNeed.map((w) => ({
           positionName: w.positionName,
-          myCandidates: mine.surplus.find((s) => s.position === w.position)?.players ?? [],
+          myCandidates: tradableSurplus.find((s) => s.position === w.position)?.players ?? [],
         })),
         theyOffer: theyOffer.map((s) => ({ positionName: s.positionName, players: s.players })),
       };
@@ -117,7 +123,7 @@ tradeRoutes.get('/trade/fits/:orgId', (req, res) => {
     .filter((f) => f.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  res.json({ myWeakest: mine.weakest, mySurplus: mine.surplus, fits: fits.slice(0, 10) });
+  res.json({ myWeakest: mine.weakest, mySurplus: tradableSurplus, fits: fits.slice(0, 10) });
 });
 
 tradeRoutes.get('/search-players', (req, res) => {
@@ -466,9 +472,9 @@ function tradePlayer(id: number, statYear: number | null) {
     const row = db
       .prepare(
         `SELECT player_id, ${cols} FROM ${table}
-         WHERE player_id = ? AND year = ? AND split_id = 1 AND league_id != 0 GROUP BY player_id`
+         WHERE player_id = ? AND year = ? AND level_id = ? AND split_id = 1 AND league_id != 0 GROUP BY player_id`
       )
-      .get(id, statYear) as Record<string, number> | undefined;
+      .get(id, statYear, level) as Record<string, number> | undefined;
     if (row) {
       line = isPitcher
         ? computePitching(row, baseline, 0)
@@ -485,6 +491,7 @@ function tradePlayer(id: number, statYear: number | null) {
     bats: ({ 1: 'R', 2: 'L', 3: 'S' } as Record<number, string>)[p.bats as number] ?? '?',
     throws: ({ 1: 'R', 2: 'L' } as Record<number, string>)[p.throws as number] ?? '?',
     currentClub: p.team,
+    organizationId: p.organization_id,
     level: LEVEL_NAMES[level ?? 0] ?? 'unknown',
     isMajorLeaguer: level === 1,
     oaRating: v?.oaRating ?? null,
@@ -633,6 +640,18 @@ export function tradeContext(orgId: number, giveIds: number[], getIds: number[])
     weReceive: get.filter((p) => p && listed.has(p.player_id)).map((p) => p!.name),
   };
 
+  const protectedIds = new Set(gmPhilosophy(orgId).protectedPlayers.map((player) => player.id));
+  const counterparties = [...new Set(get.map((p) => p?.organizationId)
+    .filter((id): id is number => typeof id === 'number' && id > 0 && id !== orgId))]
+    .map((id) => {
+      const profile = orgProfile(id, values);
+      let finances = null;
+      let posture = null;
+      try { finances = teamFinances(id); } catch { /* incomplete export */ }
+      try { posture = deadlineRead(id); } catch { /* incomplete export */ }
+      return { profile, finances, posture: posture ? { verdict: posture.posture, reasons: posture.reasons } : null };
+    });
+
   // The same totals the Compare cards put on screen, so a verdict citing a
   // number and the panel beside it can never disagree
   const giveTotals = summarizeSide(giveIds);
@@ -650,10 +669,14 @@ export function tradeContext(orgId: number, giveIds: number[], getIds: number[])
       salaryReceived: getTotals.totalSalary,
     },
     whoTheyWouldDisplace: incumbents,
+    protectedOutgoing: give.filter((player) => player && protectedIds.has(player.player_id)).map((player) => player?.name),
+    counterparties,
     /** Named here are the men their own clubs have listed for trade. */
     onTheBlock,
     clubNeeds: mine
-      ? { weakestPositions: mine.weakest, surplusPositions: mine.surplus }
+      ? { weakestPositions: mine.weakest, surplusPositions: mine.surplus.map((spot) => ({
+        ...spot, players: spot.players.filter((player) => !protectedIds.has(player.player_id)),
+      })).filter((spot) => spot.players.length > 0) }
       : null,
   };
 }

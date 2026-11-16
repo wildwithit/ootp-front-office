@@ -1,3 +1,4 @@
+import { strategyContext } from './gmPhilosophy.js';
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
@@ -503,6 +504,7 @@ function systemPrompt(orgId: number, persona: Persona): string {
 
   return [
     personaBrief(persona, orgId),
+    strategyContext(orgId),
     '',
     /*
      * Brevity, said in a way that can actually be obeyed.
