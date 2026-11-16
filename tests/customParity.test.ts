@@ -63,6 +63,6 @@ describe('Front Office 0.42.0 parity', () => {
     expect(await request('/api/newspaper/' + org)).toHaveProperty('job');
     const { providers } = await request('/api/settings/providers');
     expect(providers.map((p: { id: string }) => p.id).sort())
-      .toEqual(['anthropic', 'gemini', 'ollama', 'opencode', 'openai']);
+      .toEqual(['anthropic', 'gemini', 'ollama', 'openai', 'opencode']);
   });
 });

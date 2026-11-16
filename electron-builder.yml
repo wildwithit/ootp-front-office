@@ -27,6 +27,7 @@ asarUnpack:
   - node_modules/better-sqlite3/**
 
 mac:
+  identity: "-"
   category: public.app-category.sports
   # electron-builder renders the .icns from this single high-res source
   icon: docs/icons/frontoffice.png
@@ -63,3 +64,6 @@ nsis:
 linux:
   target: [AppImage]
   category: Game
+
+# Prevent electron-builder from inferring the fork as an update feed.
+publish: null
