@@ -4,13 +4,18 @@ import Database from 'better-sqlite3';
 import { expect, it } from 'vitest';
 import request, { post } from './request.js';
 import { IDS } from './fixture.js';
+import { db } from '../server/db.js';
 import { DATA_DIR } from '../server/config.js';
 import { makeCopiedExport, waitForImport } from './copiedExport.js';
 
 it('records real imports once per distinct checkpoint, persists on disk, and fences save scopes', async () => {
+  const pitchLine = db.prepare('INSERT INTO team_pitching_stats (team_id, year, split_id, level_id, g, r) VALUES (?, 2030, ?, 1, 54, ?)');
+  pitchLine.run(IDS.mlbTeam, 0, 12);
+  pitchLine.run(IDS.mlbTeam, 1, 217);
+  pitchLine.run(IDS.otherMlbTeam, 0, 225);
   const tables = [
     'teams', 'players', 'leagues', 'team_record', 'players_career_batting_stats',
-    'players_career_pitching_stats', 'team_roster', 'players_roster_status',
+    'players_career_pitching_stats', 'team_pitching_stats', 'team_roster', 'players_roster_status',
   ];
   const first = makeCopiedExport('export-a-', tables);
   const second = makeCopiedExport('export-b-', tables.filter((t) => t !== 'players_career_batting_stats'));
@@ -26,6 +31,11 @@ it('records real imports once per distinct checkpoint, persists on disk, and fen
   const { data } = await request(url + '?id=' + original[0].id);
   expect(data.assignments).toEqual(expect.arrayContaining([expect.objectContaining({ player_id: IDS.starter })]));
   expect(data.playerBatting).toEqual(expect.arrayContaining([expect.objectContaining({ player_id: IDS.starter, pa: 200 })]));
+  expect(data.teamPitching).toMatchObject([{ team_id: IDS.mlbTeam, split_id: 1, r: 217 }]);
+  const otherClub = '/api/checkpoints/' + IDS.otherMlbTeam;
+  const [otherClubCheckpoint] = await request(otherClub);
+  const otherClubSnapshot = await request(otherClub + '?id=' + otherClubCheckpoint.id);
+  expect(otherClubSnapshot.data.teamPitching).toMatchObject([{ team_id: IDS.otherMlbTeam, split_id: 0, r: 225 }]);
   await post('/api/import', {});
   await waitForImport();
   expect(await request(url)).toEqual(original);

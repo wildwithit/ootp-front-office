@@ -8,7 +8,7 @@ import { rangersHistory } from './rangersHistory.js';
 export const checkpointRoutes = Router();
 type Row = Record<string, string | number | null>;
 
-function rows(tables: string[], table: string, required: string[], optional: string[] = [], seasonFilter?: { years: number[]; split: number }): Row[] | null {
+function rows(tables: string[], table: string, required: string[], optional: string[] = [], seasonFilter?: { years: number[]; splits: number[] }): Row[] | null {
   if (!tables.includes(table)) return null;
   const cols = tableColumns(table);
   if (!required.every((col) => cols.includes(col))) return null;
@@ -16,8 +16,9 @@ function rows(tables: string[], table: string, required: string[], optional: str
   // Field lists are fixed to known export columns. Quote current_date in particular.
   const list = fields.map((col) => `"${col}"`).join(', ');
   if (seasonFilter?.years.length === 0) return [];
-  const filter = seasonFilter ? `WHERE split_id = ? AND year IN (${seasonFilter.years.map(() => '?').join(', ')})` : '';
-  return db.prepare(`SELECT ${list} FROM "${table}" ${filter} ORDER BY ${list}`).all(...(seasonFilter ? [seasonFilter.split, ...seasonFilter.years] : [])) as Row[];
+  const filter = seasonFilter ? `WHERE split_id IN (${seasonFilter.splits.map(() => '?').join(', ')})
+    AND year IN (${seasonFilter.years.map(() => '?').join(', ')})` : '';
+  return db.prepare(`SELECT ${list} FROM "${table}" ${filter} ORDER BY ${list}`).all(...(seasonFilter ? [...seasonFilter.splits, ...seasonFilter.years] : [])) as Row[];
 }
 
 function group(input: Row[] | null, field: string): Map<Row[string], Row[]> {
@@ -54,14 +55,18 @@ export function captureCheckpoints(key: string, tables: string[]): number {
   const playersByOrg = group(assignments.filter((p) => !p.retired && !p.hidden), 'organization_id');
   const records = rows(tables, 'team_record', ['team_id'], ['g', 'w', 'l', 't', 'pos', 'pct', 'gb', 'streak', 'magic_number']);
   const batting = rows(tables, 'team_batting_stats', ['team_id', 'year', 'split_id'],
-    ['level_id', 'g', 'r', 'pa', 'ab', 'h', 'd', 't', 'hr', 'bb', 'k', 'hp', 'sf', 'sb', 'cs'], { years: seasons, split: 0 });
-  const pitching = rows(tables, 'team_pitching_stats', ['team_id', 'year', 'split_id'],
-    ['level_id', 'g', 'r', 'ra', 'outs', 'er', 'ha', 'bb', 'k', 'hra', 'hp', 'bf'], { years: seasons, split: 0 });
+    ['level_id', 'g', 'r', 'pa', 'ab', 'h', 'd', 't', 'hr', 'bb', 'k', 'hp', 'sf', 'sb', 'cs'], { years: seasons, splits: [0] });
+  const pitchingRows = rows(tables, 'team_pitching_stats', ['team_id', 'year', 'split_id'],
+    ['league_id', 'level_id', 'g', 'r', 'ip', 'outs', 'er', 'ha', 'bb', 'k', 'hra', 'hp', 'bf'], { years: seasons, splits: [0, 1] });
+  // OOTP 27 puts aggregate team pitching in split 1. Older exports can use split 0.
+  const pitchingKey = (r: Row) => [r.team_id, r.year, r.league_id, r.level_id].join(':');
+  const pitchingTotals = new Set(pitchingRows?.filter((r) => r.split_id === 1).map(pitchingKey));
+  const pitching = pitchingRows?.filter((r) => r.split_id === 1 || !pitchingTotals.has(pitchingKey(r)));
   const playerKeys = ['player_id', 'team_id', 'league_id', 'level_id', 'year', 'split_id'];
   const playerBatting = rows(tables, 'players_career_batting_stats', playerKeys,
-    ['pa', 'ab', 'h', 'd', 't', 'hr', 'bb', 'ibb', 'hp', 'sf', 'k', 'sb', 'cs', 'r', 'rbi', 'war'], { years: seasons, split: 1 });
+    ['pa', 'ab', 'h', 'd', 't', 'hr', 'bb', 'ibb', 'hp', 'sf', 'k', 'sb', 'cs', 'r', 'rbi', 'war'], { years: seasons, splits: [1] });
   const playerPitching = rows(tables, 'players_career_pitching_stats', playerKeys,
-    ['outs', 'er', 'ra', 'ha', 'bb', 'k', 'hra', 'hp', 'bf', 'g', 'gs', 'w', 'l', 's', 'hld', 'war'], { years: seasons, split: 1 });
+    ['outs', 'ip', 'er', 'r', 'ha', 'bb', 'k', 'hra', 'hp', 'bf', 'g', 'gs', 'w', 'l', 's', 'hld', 'war'], { years: seasons, splits: [1] });
   const roster = rows(tables, 'players_roster_status', ['player_id'],
     ['is_active', 'is_on_dl', 'is_on_dl60', 'is_on_secondary', 'designated_for_assignment', 'is_on_waivers']);
   const memberships = rows(tables, 'team_roster', ['team_id', 'player_id', 'list_id']);
@@ -84,7 +89,7 @@ export function captureCheckpoints(key: string, tables: string[]): number {
       const clubIds = new Set(teams.filter((t) => t.team_id === org.id || t.parent_team_id === org.id).map((t) => t.team_id));
       const orgPlayers = playersByOrg.get(org.id) ?? [];
       const ids = new Set(orgPlayers.map((p) => p.player_id));
-      const teamLine = (r: Row) => clubIds.has(r.team_id) && r.year === season && r.split_id === 0;
+      const teamLine = (r: Row) => clubIds.has(r.team_id) && r.year === season;
       const playerLine = (r: Row) => r.year === season && r.split_id === 1 &&
         typeof r.league_id === 'number' && r.league_id > 0 && (clubIds.has(r.team_id) || ids.has(r.player_id));
       const standingsTeams = teams.filter((t) => clubIds.has(t.team_id) || t.league_id === org.leagueId);
