@@ -2,7 +2,7 @@ import { gmPhilosophy } from './gmPhilosophy.js';
 import { deadlineRead } from './posture.js';
 import { Router } from 'express';
 import { db, tableExists } from './db.js';
-import { LEVEL_NAMES, contractsByPlayer, leagueRules, mlbPercentiler, teamFinances, valuesByPlayer, type PlayerValue } from './valuation.js';
+import { LEVEL_NAMES, contractsByPlayer, leagueRules, mlbPercentiler, seasonYear, teamFinances, valuesByPlayer, type PlayerValue } from './valuation.js';
 import { controlAfterThisSeason, serviceRemainingThisSeason } from './contracts.js';
 import { padDate } from './rosterops.js';
 import { contactProfiles } from './battedball.js';
@@ -334,6 +334,8 @@ export interface TradeSideSummary {
   players: Array<{
     player_id: number; name: string; age: number; positionName: string; team: string | null;
     overallPct: number | null; talentPct: number | null; salaryNow: number; yearsAfterThis: number;
+    valuePoints: number | null; talentPoints: number | null;
+    oaRating: number | null; potRating: number | null;
   }>;
   totalValue: number;
   totalTalent: number;
@@ -370,6 +372,10 @@ export function summarizeSide(ids: number[]): TradeSideSummary {
         team: (p.team as string) ?? null,
         overallPct: overallPct(id),
         talentPct: talentPct(id),
+        valuePoints: v?.overall ?? null,
+        talentPoints: v?.talent ?? null,
+        oaRating: v?.oaRating ?? null,
+        potRating: v?.potRating ?? null,
         salaryNow: c?.salaryNow ?? 0,
         yearsAfterThis: c?.yearsAfterThis ?? 0,
       };
@@ -379,15 +385,25 @@ export function summarizeSide(ids: number[]): TradeSideSummary {
 }
 
 tradeRoutes.post('/trade/analyze', (req, res) => {
-  const { sideA, sideB } = req.body as { sideA: number[]; sideB: number[] };
+  const { sideA, sideB, orgId } = req.body as { sideA: number[]; sideB: number[]; orgId?: number };
   if (!Array.isArray(sideA) || !Array.isArray(sideB)) {
     return res.status(400).json({ error: 'sideA and sideB arrays required' });
   }
   const a = summarizeSide(sideA);
   const b = summarizeSide(sideB);
+  const protectedIds = new Set(gmPhilosophy(Number(orgId)).protectedPlayers.map((player) => player.id));
+  const statYear = tradeSeason(Number(orgId));
+  const present = (side: TradeSideSummary, outgoing: boolean) => ({
+    ...side,
+    players: side.players.map((player) => {
+      const p = tradePlayer(player.player_id, statYear);
+      return { ...player, protected: outgoing && protectedIds.has(player.player_id),
+        seasonLine: p?.seasonLine ?? null, level: p?.level ?? null, role: p?.role ?? null };
+    }),
+  });
   res.json({
-    sideA: a,
-    sideB: b,
+    sideA: orgId ? present(a, true) : a,
+    sideB: orgId ? present(b, false) : b,
     valueDiff: a.totalValue - b.totalValue,
     talentDiff: a.totalTalent - b.totalTalent,
     salaryDiff: a.totalSalary - b.totalSalary,
@@ -459,9 +475,9 @@ function tradePlayer(id: number, statYear: number | null) {
   const league = (db
     .prepare(`SELECT league_id FROM teams WHERE team_id = (SELECT team_id FROM players WHERE player_id = ?)`)
     .get(id) as { league_id: number } | undefined)?.league_id;
-  if (statYear !== null && level !== null && league) {
+  const table = isPitcher ? 'players_career_pitching_stats' : 'players_career_batting_stats';
+  if (statYear !== null && level !== null && league && tableExists(table)) {
     const baseline = leagueBaseline(league, statYear, level);
-    const table = isPitcher ? 'players_career_pitching_stats' : 'players_career_batting_stats';
     const cols = isPitcher
       ? `SUM(outs) AS outs, SUM(er) AS er, SUM(ra) AS ra, SUM(ha) AS ha, SUM(bb) AS bb,
          SUM(k) AS k, SUM(hra) AS hra, SUM(bf) AS bf, SUM(g) AS g, SUM(gs) AS gs,
@@ -578,11 +594,18 @@ function fieldingRecord(id: number, statYear: number | null): string | null {
  * played it, and beside them the men they would actually have to displace,
  * with theirs, plus what the club is short of and what it has spare.
  */
-export function tradeContext(orgId: number, giveIds: number[], getIds: number[]) {
-  const statYear = tableExists('players_career_batting_stats')
-    ? ((db.prepare(`SELECT MAX(year) AS y FROM players_career_batting_stats`).get() as { y: number }).y ?? null)
+function tradeSeason(orgId: number): number | null {
+  const org = tableExists('leagues')
+    ? db.prepare('SELECT league_id FROM teams WHERE team_id = ?').get(orgId) as { league_id: number } | undefined
+    : undefined;
+  if (org) return seasonYear(org.league_id);
+  return tableExists('players_career_batting_stats')
+    ? (db.prepare('SELECT MAX(year) AS y FROM players_career_batting_stats').get() as { y: number | null }).y
     : null;
+}
 
+export function tradeContext(orgId: number, giveIds: number[], getIds: number[]) {
+  const statYear = tradeSeason(orgId);
   const give = giveIds.map((id) => tradePlayer(id, statYear)).filter(Boolean);
   const get = getIds.map((id) => tradePlayer(id, statYear)).filter(Boolean);
 
