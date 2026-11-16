@@ -3,6 +3,8 @@ import { apiGet, apiPost } from '../api';
 import { FallbackNotice, type FallbackNoticeData } from '../FallbackNotice';
 import { formatRating } from '../ratingScale';
 import type { PhilosophyEditorData } from '../../shared/gmPhilosophy';
+import { TradeExposure } from './TradeExposure';
+import type { TradeExposure as Exposure } from '../../shared/tradeExposure';
 import { PlayerLink } from '../playerModal';
 
 interface FitPlayer { player_id: number; name: string; value: number }
@@ -25,7 +27,7 @@ interface SideSummary {
   }>;
   totalValue: number; totalTalent: number; totalSalary: number;
 }
-interface Analysis { sideA: SideSummary; sideB: SideSummary; valueDiff: number; talentDiff: number; salaryDiff: number }
+interface Analysis { sideA: SideSummary; sideB: SideSummary; valueDiff: number; talentDiff: number; salaryDiff: number; exposure: Exposure | null }
 interface ProposalSide {
   players: Array<{ player_id: number; name: string; age: number; positionName: string; team: string | null }>;
   totalValue: number;
@@ -373,6 +375,7 @@ export function TradeCenter({ orgId, orgLabel }: { orgId: number; orgLabel: stri
           </div>
         </section>
       )}
+      {analysis?.exposure && <TradeExposure data={analysis.exposure} />}
       {notice && <FallbackNotice notice={notice} />}
       {thread.length > 0 && (
         <div className="ai-verdict">

@@ -21,10 +21,11 @@ npm ci
 npm test
 npx --no-install tsc --noEmit
 npm run desktop:build
-npm run desktop
+npm run dist:mac
+"release/mac-arm64/Rangers Front Office.app/Contents/MacOS/Rangers Front Office"
 ```
 
-Use only synthetic or explicitly copied CSV directories in development. The packaged default data location is `~/Library/Application Support/Rangers Front Office`. Use a distinct development directory for manual tests. After the Electron ABI rebuild, restore Node compatibility with `npm run abi:node` before running server tests if the native addon reports an ABI mismatch.
+The packaging command produces local ad hoc-signed artifacts with publishing and upstream updates disabled. Use only synthetic or explicitly copied CSV directories in development. The packaged default data location is `~/Library/Application Support/Rangers Front Office`. Use a distinct development directory for manual tests. After the Electron ABI rebuild, restore Node compatibility with `npm run abi:node` before running server tests if the native addon reports an ABI mismatch.
 
 ## Backup and rollback
 

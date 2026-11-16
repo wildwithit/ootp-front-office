@@ -234,7 +234,9 @@ function tradeSystem(orgId: number, voice: Persona, orgLabel: string | undefined
       `not major-league ready, say where he actually slots and when he might matter.\n` +
       `- Weigh it against what the club is short of. "clubNeeds" gives the weakest positions and ` +
       `the spare ones: value bought where you are already deep is worth less than the number says.\n` +
-      `- Then the ordinary things: age, contract years, salary, and what the money commits you to.\n` +
+      `- Use contractExposure to compare current salary, guaranteed commitments, options, prior retention and ` +
+      `signed extensions by year. Scheduled payroll assumes listed option salaries are paid. A null figure is unavailable. ` +
+      `Treat arbitration, later control and free agency as conditional on service and league rules.\n` +
     `- A season line covers every club a man played for that year. Where somebody changed hands ` +
     `mid-season, say what he has done since the move as well as across the year — a hot six weeks ` +
     `in a new park is a different fact from a full season, and the reader wants both.\n` +
