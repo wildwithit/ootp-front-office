@@ -12,7 +12,7 @@ export function TradeExposure({ data }: { data: Exposure }) {
     <section className="trade-exposure">
       <h3>Contract Exposure</h3>
       <p className="muted">Annual salaries use full-season amounts. Available projections apply the scheduled salary
-        change to the exported payroll, assuming option years are paid. Arbitration, renewals, unexported buyouts, and future roster moves are uncertain.</p>
+        change to the exported payroll, assuming option years are paid. Exported option buyouts appear with the contract terms. Arbitration, renewals, and future roster moves are uncertain.</p>
       {data.guideline !== null && <p>GM payroll guideline · <strong>{dollars(data.guideline)}</strong></p>}
       {data.warnings.map((warning) => <p key={warning} className="warn">{warning}</p>)}
       {data.payrollYears.filter((year) => year.overGuideline).map((year) => (
@@ -55,7 +55,8 @@ function PlayerContract({ player }: { player: PlayerExposure }) {
           {player.contractThrough !== null && ` through ${player.contractThrough}`}</li>}
         {player.extensionFrom !== null && <li>Signed extension · {player.extensionFrom}–{player.extensionThrough}</li>}
         <li>{player.guaranteedIncomplete ? 'Identified guaranteed salary' : 'Scheduled guaranteed salary'} · {dollars(player.guaranteedKnown)}
-          {player.guaranteedIncomplete && ' · export is incomplete'}</li>
+          {player.guaranteedIncomplete && ' · some terms are uncertain'}</li>
+        {player.optOutReported && <li>Opt-out reported. Future salaries are shown as scheduled until its effect is known.</li>}
         <li>Control after this season · {player.control ?? 'Unknown'}</li>
         {player.freeAgencyAfter !== null && <li>Estimated free agency after {player.freeAgencyAfter} with continuous service and listed options paid</li>}
       </ul>
@@ -65,7 +66,8 @@ function PlayerContract({ player }: { player: PlayerExposure }) {
           <tbody>{player.years.map((year) => (
             <tr key={year.year}>
               <td>{year.year}</td><td>{dollars(year.salary)}</td><td>{dollars(year.retainedByPriorClub)}</td>
-              <td>{[year.source, ...year.options, ...(year.optionDataMissing ? ['option status unknown'] : [])].join(' · ')}</td>
+              <td>{[year.source, ...year.options, ...(year.optionBuyout
+                ? [`${dollars(year.optionBuyout)} buyout if declined`] : []), ...(year.optionDataMissing ? ['option status unknown'] : [])].join(' · ')}</td>
             </tr>
           ))}</tbody>
         </table>

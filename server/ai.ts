@@ -235,7 +235,7 @@ function tradeSystem(orgId: number, voice: Persona, orgLabel: string | undefined
       `- Weigh it against what the club is short of. "clubNeeds" gives the weakest positions and ` +
       `the spare ones: value bought where you are already deep is worth less than the number says.\n` +
       `- Use contractExposure to compare current salary, guaranteed commitments, options, prior retention and ` +
-      `signed extensions by year. Scheduled payroll assumes listed option salaries are paid. A null figure is unavailable. ` +
+      `signed extensions by year. A listed option buyout is separate from salary if the option is exercised. Scheduled payroll assumes listed options are paid and opt-outs are not exercised. A null figure is unavailable. ` +
       `Treat arbitration, later control and free agency as conditional on service and league rules.\n` +
     `- A season line covers every club a man played for that year. Where somebody changed hands ` +
     `mid-season, say what he has done since the move as well as across the year — a hot six weeks ` +
