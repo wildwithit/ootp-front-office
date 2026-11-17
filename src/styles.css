@@ -2444,3 +2444,9 @@ tr.ours td:first-child { border-left: 3px solid var(--accent); }
 .trade-player-value dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 8px; margin: 8px 0 0; }
 .trade-player-value dt { color: var(--muted); }
 .trade-player-value dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+
+.trade-exposure { margin: 14px 0; }
+.trade-table-wrap { overflow-x: auto; }
+.trade-contract-facts { padding-left: 20px; margin: 8px 0; }
+.trade-player-value summary { cursor: pointer; }

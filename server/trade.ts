@@ -1,7 +1,8 @@
+import { tradeExposure } from './tradeExposure.js';
 import { gmPhilosophy } from './gmPhilosophy.js';
 import { deadlineRead } from './posture.js';
 import { Router } from 'express';
-import { db, tableExists } from './db.js';
+import { db, hasColumns, tableExists } from './db.js';
 import { LEVEL_NAMES, contractsByPlayer, leagueRules, mlbPercentiler, seasonYear, teamFinances, valuesByPlayer, type PlayerValue } from './valuation.js';
 import { controlAfterThisSeason, serviceRemainingThisSeason } from './contracts.js';
 import { padDate } from './rosterops.js';
@@ -396,7 +397,7 @@ tradeRoutes.post('/trade/analyze', (req, res) => {
   const present = (side: TradeSideSummary, outgoing: boolean) => ({
     ...side,
     players: side.players.map((player) => {
-      const p = tradePlayer(player.player_id, statYear);
+      const p = tradePlayer(player.player_id, statYear, false);
       return { ...player, protected: outgoing && protectedIds.has(player.player_id),
         seasonLine: p?.seasonLine ?? null, level: p?.level ?? null, role: p?.role ?? null };
     }),
@@ -407,6 +408,7 @@ tradeRoutes.post('/trade/analyze', (req, res) => {
     valueDiff: a.totalValue - b.totalValue,
     talentDiff: a.totalTalent - b.totalTalent,
     salaryDiff: a.totalSalary - b.totalSalary,
+    exposure: orgId ? tradeExposure(Number(orgId), sideA, sideB) : null,
   });
 });
 
@@ -441,7 +443,7 @@ function controlOf(
   return { status: c.status, arbitrationYear: c.arbYear };
 }
 
-function tradePlayer(id: number, statYear: number | null) {
+function tradePlayer(id: number, statYear: number | null, includeScouting = true) {
   const p = db
     .prepare(
       `SELECT p.player_id, p.first_name || ' ' || p.last_name AS name, p.age, p.position, p.role,
@@ -525,14 +527,14 @@ function tradePlayer(id: number, statYear: number | null) {
      */
     control: controlOf(id, p.league_id as number | null, c?.yearsAfterThis ?? 0, !!c?.extension,
                        p.service_days as number | null, p.service_years as number | null),
-    contact: isPitcher ? null : (contactProfiles([id]).get(id) ?? null),
+    contact: isPitcher || !includeScouting ? null : (contactProfiles([id]).get(id) ?? null),
     /*
      * Where he can play, and how well. Without this the desk was judging men
      * on their bats alone — and said so when asked whether a second baseman
      * could be moved to short, which is exactly the question a trade raises.
      */
-    fielding: glovesLine(id),
-    fieldingStats: fieldingRecord(id, statYear),
+    fielding: includeScouting ? glovesLine(id) : null,
+    fieldingStats: includeScouting ? fieldingRecord(id, statYear) : null,
   };
 }
 
@@ -550,11 +552,14 @@ function tradePlayer(id: number, statYear: number | null) {
  * that he can — which is the question a trade actually raises.
  */
 function fieldingRecord(id: number, statYear: number | null): string | null {
-  if (statYear === null || !tableExists('players_career_fielding_stats')) return null;
+  const table = 'players_career_fielding_stats';
+  if (statYear === null || !hasColumns(table, 'year', 'position', 'level_id', 'player_id', 'split_id',
+    'g', 'po', 'a', 'e', 'dp')) return null;
+  const zoneRating = hasColumns(table, 'zr') ? 'AVG(zr)' : 'NULL';
   const rows = db
     .prepare(
       `SELECT year, position, level_id, SUM(g) AS g, SUM(po) AS po, SUM(a) AS a,
-              SUM(e) AS e, SUM(dp) AS dp, AVG(zr) AS zr
+              SUM(e) AS e, SUM(dp) AS dp, ${zoneRating} AS zr
        FROM players_career_fielding_stats
        -- The season in progress is split 0; the ones behind it are split 1
        --
@@ -692,6 +697,7 @@ export function tradeContext(orgId: number, giveIds: number[], getIds: number[])
       salaryReceived: getTotals.totalSalary,
     },
     whoTheyWouldDisplace: incumbents,
+    contractExposure: tradeExposure(orgId, giveIds, getIds),
     protectedOutgoing: give.filter((player) => player && protectedIds.has(player.player_id)).map((player) => player?.name),
     counterparties,
     /** Named here are the men their own clubs have listed for trade. */

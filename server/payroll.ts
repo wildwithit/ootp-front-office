@@ -13,7 +13,7 @@ const POSITION_NAMES: Record<number, string> = {
 /** How many future seasons the commitment curve covers. */
 const HORIZON = 6;
 
-interface ContractRow extends Record<string, number> {
+export interface ContractRow extends Record<string, number> {
   player_id: number;
   years: number;
   current_year: number;
@@ -21,7 +21,7 @@ interface ContractRow extends Record<string, number> {
 }
 
 /** A signed extension that has not started yet; same salary0..14 shape. */
-interface ExtensionRow extends Record<string, number> {
+export interface ExtensionRow extends Record<string, number> {
   player_id: number;
   years: number;
   season_year: number;
@@ -51,7 +51,7 @@ interface ExtensionRow extends Record<string, number> {
  * record left behind on a man who simply moved — the case the note above
  * describes — still reads correctly.
  */
-function payingShare(c: ContractRow & { current_org: number | null; retained: number | null },
+export function payingShare(c: { contract_team_id: number; current_org: number | null; retained: number | null },
                      orgId: number): number {
   const retained = c.retained ?? 0;
   if (retained <= 0) return 1;
@@ -64,27 +64,24 @@ function payingShare(c: ContractRow & { current_org: number | null; retained: nu
   return Math.max(0, 1 - retained / 100);
 }
 
-function salaryForYear(
-  c: ContractRow,
-  thisSeason: number,
-  year: number,
-  extension?: ExtensionRow
-): number | null {
-  const completed = c.current_year ?? 0;
+/** Pick one salary slot per calendar year. The active contract has priority on overlap. */
+export function salarySlotForYear(c: ContractRow, thisSeason: number, year: number, extension?: ExtensionRow) {
   const offset = year - thisSeason;
-  const idx = completed + offset;
-  const years = c.years ?? 0;
-  if (offset < 0 || idx < 0 || idx > 14) return null;
-  // Past the final year of the deal the current contract pays nothing more —
-  // but a signed extension picks up from its own start year, and leaving it
-  // out understated every future season by the whole value of the new deal.
-  if (idx > years - 1) {
-    if (!extension) return null;
-    const extIdx = year - extension.season_year;
-    if (extIdx < 0 || extIdx > 14 || extIdx > (extension.years ?? 0) - 1) return null;
-    return extension[`salary${extIdx}`] ?? 0;
+  if (offset < 0) return null;
+  const idx = (c.current_year ?? 0) + offset;
+  if (idx >= 0 && idx < (c.years ?? 0)) {
+    return { row: c, index: idx, source: 'contract' as const };
   }
-  return c[`salary${idx}`] ?? 0;
+  if (!extension) return null;
+  const extIdx = year - extension.season_year;
+  return extIdx >= 0 && extIdx < extension.years
+    ? { row: extension, index: extIdx, source: 'extension' as const } : null;
+}
+
+function salaryForYear(c: ContractRow, thisSeason: number, year: number, extension?: ExtensionRow): number | null {
+  const slot = salarySlotForYear(c, thisSeason, year, extension);
+  if (!slot || slot.index > 14) return null;
+  return slot.row[`salary${slot.index}`] ?? 0;
 }
 
 payrollRoutes.get('/payroll/:orgId', (req, res) => {
@@ -168,7 +165,9 @@ payrollRoutes.get('/payroll/:orgId', (req, res) => {
        * Scaled to what this club pays. A retained share is the difference
        * between a payroll figure and a number somebody else is settling.
        */
-      const share = payingShare(c, orgId);
+      const share = payingShare({
+        contract_team_id: c.contract_team_id, current_org: c.current_org, retained: c.retained,
+      }, orgId);
       const byYear = years.map((y) => {
         const full = salaryForYear(c, thisSeason, y, extension);
         return full === null ? null : Math.round(full * share);
